@@ -1,7 +1,6 @@
-version: "3.9"
+# version: "3.9"
 
 services:
-
   oracle:
     image: loliconneko/oracle-ee-11g
     container_name: oracle-db
@@ -9,6 +8,7 @@ services:
       ORACLE_ALLOW_REMOTE: "yes"
       ORACLE_DISABLE_ASYNCH_IO: "true"
       ORACLE_PASSWORD: oracle
+      NLS_LANG: FRENCH_FRANCE.AL32UTF8
     ports:
       - "1521:1521"
     volumes:

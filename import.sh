@@ -12,6 +12,6 @@ exit;
 
 
 
-docker cp /home/antonio/ITU/S5/mr-tahina/kolotv/kolo0107.dmp oracle-db:/home/oracle/
+docker cp /home/antonio/Bureau/S5/mr-tahina/kolotv/export_20260122.dmp oracle-db:/home/oracle/
 docker exec -it oracle-db bash
-imp kolotv/kolotv file=/home/oracle/kolo0107.dmp full=yes ignore=yes
+imp kolotv/kolotv file=/home/oracle/export_20260122.dmp full=yes ignore=yes

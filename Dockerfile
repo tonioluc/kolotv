@@ -30,7 +30,7 @@ RUN touch ${DEPLOY_DIR}/kolotv.war.dodeploy
 # --- CORRECTION ICI ---
 # On utilise ENV pour modifier JAVA_OPTS. C'est la méthode officielle pour que Wildfly
 # prenne en compte les paramètres au démarrage de Java.
-ENV JAVA_OPTS="$JAVA_OPTS -Duser.language=fr -Duser.country=FR -Duser.timezone=Europe/Paris -Duser.region=FR"
+ENV JAVA_OPTS="$JAVA_OPTS -Duser.language=fr -Duser.country=FR -Duser.timezone=Europe/Paris -Duser.region=FR -Djava.net.preferIPv4Stack=true"
 
 EXPOSE 8080 9990
 

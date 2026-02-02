@@ -1,7 +1,7 @@
 #!/bin/bash
 # Arrêter et supprimer seulement l'application
-docker compose stop kolotv-wildfly
-docker rm kolotv-wildfly 2>/dev/null || true
+docker compose stop kolotv-app
+docker rm kolotv-app 2>/dev/null || true
 
 # Nettoyer les images et caches
 # docker image prune -f

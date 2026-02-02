@@ -433,9 +433,11 @@ public class ReservationDetails extends ClassFille {
             if (!media.getIdTypeMedia().equals(service.getCategorieIngredient())){
                 throw new Exception("le type du media et du service doivent etre egal");
             }
-            if (service.getDureeMax()>0){
+            // Valider seulement si dureeMax est configuré avec une valeur significative (>= 10 secondes)
+            // Une valeur < 10 est considérée comme non configurée
+            if (service.getDureeMax() >= 10){
                 if (Integer.parseInt(media.getDuree())>service.getDureeMax()){
-                    throw new Exception("la duree du media doit etre inferieur ou egal a "+service.getDureeMax());
+                    throw new Exception("la duree du media doit etre inferieur ou egal a "+utils.CalendarUtil.secondToHMS(service.getDureeMax()));
                 }
             }
         }

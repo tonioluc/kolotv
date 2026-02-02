@@ -15,8 +15,6 @@
 <%@ page import="utils.UrlUtils" %>
 <%@ page import="java.sql.Date" %>
 <%@ page import="java.time.LocalDate, java.time.format.DateTimeFormatter" %>
-<%@ page import="java.time.temporal.WeekFields" %>
-<%@ page import="java.util.Locale" %>
 <%@ page import="utilitaire.Utilitaire" %>
 <%@ page import="reservation.EtatReservationDetails" %>
 <%@ page import="java.time.LocalTime" %>
@@ -124,6 +122,58 @@ table td{
   border-color: #c8c8c8;
   padding: 5px;
 }
+
+.total-ca-header {
+  background-color: #28a745;
+  color: white;
+  padding: 10px 5px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: bold;
+  border: 0.5px solid #c8c8c8;
+  min-width: 120px;
+}
+
+.total-ca-cell {
+  background-color: #d4edda;
+  font-weight: bold;
+  text-align: center;
+  padding: 10px 5px;
+  border: 0.5px solid #c8c8c8;
+  font-size: 14px;
+  color: #155724;
+}
+
+.total-ca-footer {
+  background-color: #28a745;
+  color: white;
+  padding: 8px 5px;
+  text-align: center;
+  border: 0.5px solid #c8c8c8;
+}
+
+.total-ca-footer p {
+  margin: 2px 0;
+  font-size: 12px;
+}
+
+.calendar-footer p {
+  margin: 2px 0;
+  font-size: 12px;
+}
+
+.cell-ca-badge {
+  background-color: #ffc107;
+  color: #212529;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  margin-top: 5px;
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+}
 </style>
 
 <%
@@ -134,31 +184,13 @@ table td{
     /* Récuperer la date par défaut */
     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     String dateEncours = request.getParameter("d");
-    String numSemaineParam = request.getParameter("numSemaine");
-    String anneeParam = request.getParameter("annee");
-    
-    // Gestion du filtre par numéro de semaine
-    if (numSemaineParam != null && !numSemaineParam.isEmpty() && anneeParam != null && !anneeParam.isEmpty()) {
-      int numSemaine = Integer.parseInt(numSemaineParam);
-      int annee = Integer.parseInt(anneeParam);
-      WeekFields weekFields = WeekFields.of(Locale.FRANCE);
-      LocalDate premierJourSemaine = LocalDate.of(annee, 1, 1)
-          .with(weekFields.weekOfYear(), numSemaine)
-          .with(weekFields.dayOfWeek(), 1);
-      dateEncours = premierJourSemaine.format(formatter);
-    } else if (dateEncours!=null){
+    if (dateEncours!=null){
       dateEncours = CalendarUtil.castDateToFormat(dateEncours,DateTimeFormatter.ofPattern("yyyy-MM-dd"),formatter);
     }
     if (dateEncours == null || dateEncours.trim().isEmpty()) {
       LocalDate aujourdHui = LocalDate.now();
       dateEncours = aujourdHui.format(formatter);
     }
-    
-    // Calculer le numéro de semaine actuel
-    LocalDate dateActuelle = LocalDate.parse(dateEncours, formatter);
-    WeekFields weekFields = WeekFields.of(Locale.FRANCE);
-    int numeroSemaineActuel = dateActuelle.get(weekFields.weekOfYear());
-    int anneeActuelle = dateActuelle.getYear();
 
     String debutEtFinDeSemaine[]=CalendarUtil.getDebutEtFinDeSemaine(dateEncours);
     String idSupport = request.getParameter("idSupport");
@@ -209,7 +241,7 @@ table td{
     <a href="<%=lienPrecedent%>" id="prev-week" class="btn btn-default">
       <i class="fa fa-chevron-left"></i>
     </a>
-    <span class="week-range" id="week-range">Semaine <%=numeroSemaineActuel%> - du <%=debutEtFinDeSemaine[0]%> au <%=debutEtFinDeSemaine[1]%></span>
+    <span class="week-range" id="week-range">Semaine du <%=debutEtFinDeSemaine[0]%> au <%=debutEtFinDeSemaine[1]%></span>
     <a href="<%=lienSuivant%>" id="next-week" class="btn btn-default">
       <i class="fa fa-chevron-right"></i>
     </a>
@@ -217,8 +249,8 @@ table td{
 
   <!-- Sélection du support -->
   <div style="width: 100%;display: flex;justify-content: center">
-    <form class="col-md-10 col-xs-12" action="<%=lien%>" method="Get" style="padding: 10px;margin: 5px;border-radius: 5px;display: flex;align-items: end;flex-wrap: wrap;">
-      <div class='form-input col-md-2 col-xs-6'>
+    <form class="col-md-6 col-xs-12" action="<%=lien%>" method="Get" style="padding: 10px;margin: 5px;border-radius: 5px;display: flex;align-items: end;">
+      <div class='form-input col-md-4 col-xs-12'>
         <label class="nopadding fontinter labelinput">Support</label>
         <select class="form-control" name="idSupport">
           <option value="">Tous</option>
@@ -234,7 +266,7 @@ table td{
         </select>
 
       </div>
-      <div class='form-input col-md-2 col-xs-6'>
+      <div class='form-input col-md-4 col-xs-12'>
         <label class="nopadding fontinter labelinput">Type Service</label>
         <select class="form-control" name="idCategorieIngredient">
           <option value="">Tous</option>
@@ -250,32 +282,12 @@ table td{
         </select>
 
       </div>
-      <div class="form-input col-md-2 col-xs-6">
-        <label class="nopadding fontinter labelinput">Semaine N&deg;</label>
-        <select class="form-control" name="numSemaine">
-          <% for (int s=1; s<=52; s++) {
-            String isSelected = (s == numeroSemaineActuel) ? "selected" : "";
-          %>
-          <option <%=isSelected%> value="<%=s%>">Semaine <%=s%></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="form-input col-md-2 col-xs-6">
-        <label class="nopadding fontinter labelinput">Ann&eacute;e</label>
-        <select class="form-control" name="annee">
-          <% for (int a=anneeActuelle-1; a<=anneeActuelle+1; a++) {
-            String isSelected = (a == anneeActuelle) ? "selected" : "";
-          %>
-          <option <%=isSelected%> value="<%=a%>"><%=a%></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="form-input col-md-2 col-xs-6">
+      <div class="form-input col-md-4 col-xs-12">
         <label class="nopadding fontinter labelinput">Date</label>
         <input class='form-control' type='date' value='<%=CalendarUtil.castDateToFormat(dateEncours,formatter,DateTimeFormatter.ofPattern("yyyy-MM-dd"))%>' name='d'>
       </div>
       <input type='hidden' value='<%=bute%>' name='but'>
-      <div class="form-input col-md-2 col-xs-6">
+      <div class="form-input col-md-4 col-xs-12">
         <button class="btn btn-success" style="width: 100%;height: 32px;text-align: center" type="submit">Afficher</button>
       </div>
     </form>
@@ -301,7 +313,7 @@ table td{
               <%=listeDate[i]%>
             </th>
             <%  } %>
-            <th class="calendar-cell-title" style="background-color: #28a745; color: white;">CA Ligne</th>
+            <th class="total-ca-header">Total CA</th>
           </tr>
           </thead>
           <tbody>
@@ -316,6 +328,7 @@ table td{
             <% for(int j=0;j<listeDate.length;j++) { %>
             <%
               ReservationDetailsAvecDiffusion [] reservations = eta.getReservationByTime(intervales,listeDate[j]);
+              double caCellule = eta.getCaParHoraire(); // CA pour cette cellule (jour + horaire)
               if(reservations != null && reservations.length>0) { %>
             <td class="calendar-cell">
               <% for (int k=0;k<reservations.length && k<2;k++) {
@@ -336,6 +349,12 @@ table td{
                   <i class="fa fa-plus"></i> <%=CalendarUtil.secondToHMS(eta.getResteADiffuser(intervales))%>
                 </a>
               <% } %>
+              
+              <% if(caCellule > 0) { %>
+                <div class="cell-ca-badge">
+                  <i class="fa fa-money"></i> <%=Utilitaire.formaterAr(caCellule)%>
+                </div>
+              <% } %>
             </td>
 
             <%  } else { %>
@@ -346,9 +365,12 @@ table td{
             </td>
             <% } %>
             <%  } %>
-            <!-- CA Total pour cette ligne (horaire) -->
-            <td class="calendar-cell" style="background-color: #d4edda; font-weight: bold; text-align: center;">
-              <span style="color: #155724;"><%=Utilitaire.formaterAr(eta.getCaForHoraire(intervales))%></span>
+            <% 
+              // Calculer et afficher le total CA pour cette plage horaire
+              double totalCAHoraire = eta.getTotalCAForHoraire(intervales);
+            %>
+            <td class="total-ca-cell">
+              <%=Utilitaire.formaterAr(totalCAHoraire)%>
             </td>
           </tr>
           <%  } %>
@@ -356,22 +378,18 @@ table td{
           </tbody>
           <tfoot>
           <tr>
-            <th class="calendar-cell-title">TOTAL CA</th>
-            <% 
-              double caTotalSemaine = 0;
-              for(int k=0;k<listeDate.length;k++) {
+            <th class="calendar-cell-title">TOTAL</th>
+            <% for(int k=0;k<listeDate.length;k++) {
               Double [] tab = total.get(listeDate[k]);
-              caTotalSemaine += tab[0];
             %>
-              <th class="calendar-footer" style="background-color: #fff3cd;">
-                <p style="color: #856404; font-size: 14px; margin-bottom: 5px;">CA : <strong><%=Utilitaire.formaterAr(tab[0])%></strong></p>
-                <p style="color: #333; font-size: 12px;">Dur&eacute;e : <strong><%=CalendarUtil.secondToHMS(Math.round(tab[1]))%></strong></p>
+              <th class="calendar-footer">
+                <p>CA : <strong><%=Utilitaire.formaterAr(tab[0])%></strong></p>
+                <p>Dur&eacute;e : <strong><%=CalendarUtil.secondToHMS(Math.round(tab[1]))%></strong></p>
               </th>
             <%  } %>
-            <!-- CA Total de la semaine -->
-            <th class="calendar-footer" style="background-color: #28a745; color: white;">
-              <p style="font-size: 14px;">TOTAL</p>
-              <p style="font-size: 16px;"><strong><%=Utilitaire.formaterAr(caTotalSemaine)%></strong></p>
+            <th class="total-ca-footer">
+              <p>Total CA G&eacute;n&eacute;ral</p>
+              <p><strong><%=Utilitaire.formaterAr(eta.getTotalCAGeneral())%></strong></p>
             </th>
           </tr>
           </tfoot>

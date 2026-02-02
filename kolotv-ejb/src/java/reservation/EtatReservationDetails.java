@@ -21,11 +21,10 @@ public class EtatReservationDetails {
     HashMap<String, Vector> reservations;
     List<LocalTime[]> horaire;
     HashMap<String,Double[]> total = new HashMap<>();
-    // Totaux par horaire (ligne) : clé = "HH:mm-HH:mm", valeur = [montantTotal, dureeTotal]
-    HashMap<String,Double[]> totalParHoraire = new HashMap<>();
-    // CA par cellule : clé = "date|heure", valeur = montantTTC
-    HashMap<String,Double> caParCellule = new HashMap<>();
     int dureeDiffuser;
+    double caParHoraire; // CA généré pour la plage horaire courante
+    HashMap<String, Double> totalCAParHoraire = new HashMap<>(); // CA par plage horaire (clé: heure début)
+    double totalCAGeneral = 0; // Total CA pour toute la grille
     public EtatReservationDetails(String idSupport,String idTypeService,String dtMin,String dtMax) throws Exception {
         Connection c=null;
         try {
@@ -34,7 +33,6 @@ public class EtatReservationDetails {
             horaire = CalendarUtil.trierParReference(CalendarUtil.generateTimeIntervalsOfDay(60),LocalTime.now());
             this.setReservations(idSupport,idTypeService,dtMin,dtMax,c);
             this.setTotal();
-            this.setTotalParHoraire();
         }
         catch (Exception e) {
             throw e;
@@ -93,6 +91,7 @@ public class EtatReservationDetails {
         // total[0] - Montant Total
         // total[1] - Duree de diffusion Total
         this.total = new HashMap<>();
+        this.totalCAGeneral = 0;
         for (String dt : listeDate) {
             double montantTotal = 0;
             double dureeTotal = 0;
@@ -101,6 +100,7 @@ public class EtatReservationDetails {
                 for (Object o:v){
                     ReservationDetailsAvecDiffusion res = (ReservationDetailsAvecDiffusion) o;
                     montantTotal += res.getMontantTtc();
+                    this.totalCAGeneral += res.getMontantTtc();
                     if (res.getDuree()!=null) {
                         dureeTotal += Double.valueOf(res.getDuree());
                     }
@@ -122,6 +122,7 @@ public class EtatReservationDetails {
         List<ReservationDetailsAvecDiffusion> res = new ArrayList<>();
         Vector liste = this.getReservations().get(date);
         this.dureeDiffuser = 0;
+        this.caParHoraire = 0;
         if (liste!=null){
             for (Object d : liste) {
                 ReservationDetailsAvecDiffusion rd = (ReservationDetailsAvecDiffusion) d;
@@ -132,11 +133,15 @@ public class EtatReservationDetails {
                         if (rd.getDuree()!=null){
                             this.dureeDiffuser += Integer.valueOf(rd.getDuree());
                         }
+                        this.caParHoraire += rd.getMontantTtc();
                     }
                     res.add(rd);
                 }
             }
         }
+        // Stocker le CA pour cette plage horaire
+        String cleHoraire = times[0].toString() + "-" + date;
+        totalCAParHoraire.put(cleHoraire, this.caParHoraire);
         return res.toArray(new ReservationDetailsAvecDiffusion[]{});
     }
 
@@ -178,70 +183,40 @@ public class EtatReservationDetails {
         return result;
     }
 
-    /**
-     * Calcule les totaux par horaire (pour chaque ligne)
-     */
-    public void setTotalParHoraire() {
-        this.totalParHoraire = new HashMap<>();
-        this.caParCellule = new HashMap<>();
-        
-        for (LocalTime[] times : horaire) {
-            String horaireKey = times[0].toString() + "-" + times[1].toString();
-            double montantHoraire = 0;
-            double dureeHoraire = 0;
-            
-            for (String date : listeDate) {
-                Vector v = this.reservations.get(date);
-                double montantCellule = 0;
-                
-                if (v != null) {
-                    for (Object o : v) {
-                        ReservationDetailsAvecDiffusion res = (ReservationDetailsAvecDiffusion) o;
-                        LocalTime heure = LocalTime.parse(res.getHeure());
-                        
-                        if (checkTime(heure, times[0], times[1])) {
-                            montantHoraire += res.getMontantTtc();
-                            montantCellule += res.getMontantTtc();
-                            if (res.getDuree() != null) {
-                                dureeHoraire += Double.valueOf(res.getDuree());
-                            }
-                        }
-                    }
-                }
-                
-                // Stocker le CA par cellule
-                String celluleKey = date + "|" + horaireKey;
-                caParCellule.put(celluleKey, montantCellule);
+    public double getCaParHoraire() {
+        return caParHoraire;
+    }
+
+    public void setCaParHoraire(double caParHoraire) {
+        this.caParHoraire = caParHoraire;
+    }
+
+    public double getTotalCAGeneral() {
+        return totalCAGeneral;
+    }
+
+    public void setTotalCAGeneral(double totalCAGeneral) {
+        this.totalCAGeneral = totalCAGeneral;
+    }
+
+    public HashMap<String, Double> getTotalCAParHoraire() {
+        return totalCAParHoraire;
+    }
+
+    public void setTotalCAParHoraire(HashMap<String, Double> totalCAParHoraire) {
+        this.totalCAParHoraire = totalCAParHoraire;
+    }
+
+    // Calculer le total CA pour une plage horaire donnée (toutes les dates)
+    public double getTotalCAForHoraire(LocalTime[] times) {
+        double totalCA = 0;
+        for (String date : listeDate) {
+            String cle = times[0].toString() + "-" + date;
+            Double ca = totalCAParHoraire.get(cle);
+            if (ca != null) {
+                totalCA += ca;
             }
-            
-            totalParHoraire.put(horaireKey, new Double[]{montantHoraire, dureeHoraire});
         }
-    }
-
-    public HashMap<String, Double[]> getTotalParHoraire() {
-        return totalParHoraire;
-    }
-
-    public HashMap<String, Double> getCaParCellule() {
-        return caParCellule;
-    }
-
-    /**
-     * Obtenir le CA pour une cellule spécifique (date + horaire)
-     */
-    public double getCaForCellule(String date, LocalTime[] times) {
-        String horaireKey = times[0].toString() + "-" + times[1].toString();
-        String celluleKey = date + "|" + horaireKey;
-        Double ca = caParCellule.get(celluleKey);
-        return ca != null ? ca : 0;
-    }
-
-    /**
-     * Obtenir le CA total pour un horaire (ligne)
-     */
-    public double getCaForHoraire(LocalTime[] times) {
-        String horaireKey = times[0].toString() + "-" + times[1].toString();
-        Double[] vals = totalParHoraire.get(horaireKey);
-        return vals != null ? vals[0] : 0;
+        return totalCA;
     }
 }

@@ -124,7 +124,7 @@ table td{
 }
 
 .total-ca-header {
-  background-color: #28a745;
+  background-color: #60b674;
   color: white;
   padding: 10px 5px;
   text-align: center;
@@ -163,7 +163,7 @@ table td{
 }
 
 .cell-ca-badge {
-  background-color: #ffc107;
+  background-color: #78dd6d;
   color: #212529;
   padding: 4px 8px;
   border-radius: 4px;
@@ -352,7 +352,7 @@ table td{
               
               <% if(caCellule > 0) { %>
                 <div class="cell-ca-badge">
-                  <i class="fa fa-money"></i> <%=Utilitaire.formaterAr(caCellule)%>
+                  <i class="fa fa-money"></i> <%=Utilitaire.formaterAr(caCellule) + " Ar"%>
                 </div>
               <% } %>
             </td>
@@ -370,7 +370,7 @@ table td{
               double totalCAHoraire = eta.getTotalCAForHoraire(intervales);
             %>
             <td class="total-ca-cell">
-              <%=Utilitaire.formaterAr(totalCAHoraire)%>
+              <%=Utilitaire.formaterAr(totalCAHoraire) + "Ar"%>
             </td>
           </tr>
           <%  } %>
@@ -383,13 +383,13 @@ table td{
               Double [] tab = total.get(listeDate[k]);
             %>
               <th class="calendar-footer">
-                <p>CA : <strong><%=Utilitaire.formaterAr(tab[0])%></strong></p>
+                <p>CA : <strong><%=Utilitaire.formaterAr(tab[0]) + " Ar"%></strong></p>
                 <p>Dur&eacute;e : <strong><%=CalendarUtil.secondToHMS(Math.round(tab[1]))%></strong></p>
               </th>
             <%  } %>
             <th class="total-ca-footer">
               <p>Total CA G&eacute;n&eacute;ral</p>
-              <p><strong><%=Utilitaire.formaterAr(eta.getTotalCAGeneral())%></strong></p>
+              <p><strong><%=Utilitaire.formaterAr(eta.getTotalCAGeneral()) + " Ar"%></strong></p>
             </th>
           </tr>
           </tfoot>

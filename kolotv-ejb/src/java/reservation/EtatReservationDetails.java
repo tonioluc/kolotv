@@ -88,7 +88,7 @@ public class EtatReservationDetails {
     }
 
     public void setTotal() {
-        // total[0] - Montant Total
+        // total[0] - Montant Total (sera recalculé après getReservationByTime)
         // total[1] - Duree de diffusion Total
         this.total = new HashMap<>();
         this.totalCAGeneral = 0;
@@ -99,6 +99,7 @@ public class EtatReservationDetails {
             if (v != null) {
                 for (Object o:v){
                     ReservationDetailsAvecDiffusion res = (ReservationDetailsAvecDiffusion) o;
+                    // Le CA total par jour reste le même (somme des montants des réservations)
                     montantTotal += res.getMontantTtc();
                     this.totalCAGeneral += res.getMontantTtc();
                     if (res.getDuree()!=null) {
@@ -108,7 +109,6 @@ public class EtatReservationDetails {
             }
             total.put(dt,new Double[]{montantTotal,dureeTotal});
         }
-
     }
 
     public boolean checkTime (LocalTime time,LocalTime time_min,LocalTime time_max) {
@@ -116,6 +116,69 @@ public class EtatReservationDetails {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Vérifie si une diffusion chevauche une plage horaire donnée
+     * @param heureDebut Heure de début de la diffusion
+     * @param heureFin Heure de fin de la diffusion
+     * @param slotDebut Début de la plage horaire
+     * @param slotFin Fin de la plage horaire
+     * @return true si la diffusion chevauche la plage horaire
+     */
+    public boolean chevauchePlageHoraire(LocalTime heureDebut, LocalTime heureFin, LocalTime slotDebut, LocalTime slotFin) {
+        // Une diffusion chevauche si elle ne se termine pas avant le début du slot
+        // et ne commence pas après la fin du slot
+        return !heureFin.isBefore(slotDebut) && !heureDebut.isAfter(slotFin) && heureFin.isAfter(slotDebut);
+    }
+
+    /**
+     * Calcule la durée de chevauchement entre une diffusion et une plage horaire
+     * @param heureDebut Heure de début de la diffusion
+     * @param heureFin Heure de fin de la diffusion
+     * @param slotDebut Début de la plage horaire
+     * @param slotFin Fin de la plage horaire
+     * @return Durée de chevauchement en secondes
+     */
+    public long getDureeChevauchement(LocalTime heureDebut, LocalTime heureFin, LocalTime slotDebut, LocalTime slotFin) {
+        // Trouver le début effectif du chevauchement
+        LocalTime debutEffectif = heureDebut.isAfter(slotDebut) ? heureDebut : slotDebut;
+        // Trouver la fin effective du chevauchement
+        LocalTime finEffective = heureFin.isBefore(slotFin) ? heureFin : slotFin;
+        
+        // Si pas de chevauchement, retourner 0
+        if (debutEffectif.isAfter(finEffective) || debutEffectif.equals(finEffective)) {
+            return 0;
+        }
+        
+        return CalendarUtil.getDuration(debutEffectif, finEffective);
+    }
+
+    /**
+     * Calcule le CA proportionnel pour une diffusion dans une plage horaire
+     * @param rd La réservation
+     * @param slotDebut Début de la plage horaire
+     * @param slotFin Fin de la plage horaire
+     * @return Le CA proportionnel
+     */
+    public double getCAProportionnel(ReservationDetailsAvecDiffusion rd, LocalTime slotDebut, LocalTime slotFin) {
+        if (rd.getDuree() == null || rd.getDuree().isEmpty()) {
+            return 0;
+        }
+        
+        LocalTime heureDebut = LocalTime.parse(rd.getHeure());
+        int dureeTotale = Integer.parseInt(rd.getDuree());
+        LocalTime heureFin = heureDebut.plusSeconds(dureeTotale);
+        
+        long dureeChevauchement = getDureeChevauchement(heureDebut, heureFin, slotDebut, slotFin);
+        
+        if (dureeTotale <= 0 || dureeChevauchement <= 0) {
+            return 0;
+        }
+        
+        // Calculer le CA proportionnel
+        double proportion = (double) dureeChevauchement / (double) dureeTotale;
+        return rd.getMontantTtc() * proportion;
     }
 
     public ReservationDetailsAvecDiffusion [] getReservationByTime(LocalTime [] times,String date) throws Exception {
@@ -126,14 +189,24 @@ public class EtatReservationDetails {
         if (liste!=null){
             for (Object d : liste) {
                 ReservationDetailsAvecDiffusion rd = (ReservationDetailsAvecDiffusion) d;
-                LocalTime heure = LocalTime.parse(rd.getHeure());
-                if (checkTime(heure,times[0],times[1])) {
-
-                    if (rd.getEtatMere()>= ConstanteEtat.getEtatValider()){
-                        if (rd.getDuree()!=null){
-                            this.dureeDiffuser += Integer.valueOf(rd.getDuree());
-                        }
-                        this.caParHoraire += rd.getMontantTtc();
+                LocalTime heureDebut = LocalTime.parse(rd.getHeure());
+                
+                // Calculer l'heure de fin de la diffusion
+                LocalTime heureFin = heureDebut;
+                if (rd.getDuree() != null && !rd.getDuree().isEmpty()) {
+                    heureFin = heureDebut.plusSeconds(Long.parseLong(rd.getDuree()));
+                }
+                
+                // Vérifier si la diffusion chevauche cette plage horaire
+                if (chevauchePlageHoraire(heureDebut, heureFin, times[0], times[1])) {
+                    if (rd.getEtatMere() >= ConstanteEtat.getEtatValider()) {
+                        // Calculer la durée de chevauchement pour cette plage
+                        long dureeChevauchement = getDureeChevauchement(heureDebut, heureFin, times[0], times[1]);
+                        this.dureeDiffuser += dureeChevauchement;
+                        
+                        // Calculer le CA proportionnel basé sur le temps dans cette plage
+                        double caProportionnel = getCAProportionnel(rd, times[0], times[1]);
+                        this.caParHoraire += caProportionnel;
                     }
                     res.add(rd);
                 }

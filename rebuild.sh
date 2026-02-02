@@ -4,7 +4,6 @@ docker compose stop kolotv-app
 docker rm kolotv-app 2>/dev/null || true
 
 # Nettoyer les images et caches
-# docker image prune -f
 docker builder prune -f
 
 # Rebuilder

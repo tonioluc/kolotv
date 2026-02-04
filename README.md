@@ -116,6 +116,3 @@ Fichiers de référence
 Remarques et bonnes pratiques
 - Conservez le `.dmp` et les fichiers volumineux en dehors du dépôt (disque local ou partage).
 - Si vous rencontrez des problèmes, joignez les logs obtenus via `docker compose logs -f` lors de votre demande d'aide.
-- Pour toute modification importante (versions d'images, chemins), mettez à jour ce README.
-
-Besoin d'aide pour intégrer le lien Drive ? Collez le lien et je l'insère dans la section « Télécharger les fichiers manquants ».

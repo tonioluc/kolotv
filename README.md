@@ -1,93 +1,121 @@
-# KoloTV
+# KoloTV - Instructions d'installation
 
+Ce document décrit, pas à pas et de manière professionnelle, la procédure pour lancer le projet KoloTV en local avec Docker.
 
+**Prérequis**
+- Docker et Docker Compose installés sur la machine.
+- Espace disque suffisant pour les images Docker et l'import de la base.
 
-## Getting started
+**Étapes**
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+1) Télécharger les fichiers manquants
+- Le répertoire `build-file` et le fichier `build.xml` sont exclus du dépôt (gitignore). Téléchargez-les depuis le lien fourni par l'auteur et placez-les à la racine du clone du projet.
+- Collez le lien de téléchargement ici : https://drive.google.com/drive/folders/1vl0qd3sZB0N3AEcz6V6mizDEMwFRQ83-?usp=sharing
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+2) Copier les fichiers dans le projet
+- Après téléchargement, copiez le dossier `build-file` et le fichier `build.xml` à la racine du dépôt cloné (même niveau que ce fichier README).
 
-## Add your files
+3) Pré-puller les images Docker nécessaires
+- Afin de pouvoir construire les images sans connexion internet ultérieurement, récupérez localement les images suivantes :
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+  ```bash
+  docker pull loliconneko/oracle-ee-11g:latest
+  docker pull frekele/ant:1.10-jdk8
+  docker pull jboss/wildfly:10.1.0.Final
+  ```
 
-```
-cd existing_repo
-git remote add origin https://gitlab.com/bici-mada/kolotv.git
-git branch -M main
-git push -uf origin main
-```
+4) Construire les images du projet
+- Ouvrez un terminal dans la racine du projet (contenant `docker-compose.yml`).
+- Lancez la commande suivante pour construire les images :
 
-## Integrate with your tools
+  ```bash
+  docker compose build
+  ```
 
-- [ ] [Set up project integrations](https://gitlab.com/bici-mada/kolotv/-/settings/integrations)
+5) Démarrer les services
+- Si la construction termine avec succès, démarrez les services :
 
-## Collaborate with your team
+  - En mode attaché (affiche les logs dans le terminal) :
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+    ```bash
+    docker compose up
+    ```
 
-## Test and Deploy
+  - En mode détaché (exécute en arrière-plan) :
 
-Use the built-in continuous integration in GitLab.
+    ```bash
+    docker compose up -d
+    ```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- Pour suivre les logs en détaché :
 
-***
+  ```bash
+  docker compose logs -f
+  ```
 
-# Editing this README
+- Remarque : l'initialisation de la base Oracle peut prendre du temps ; elle est habituellement la dernière à terminer.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+6) Vérifier que la base Oracle est prête
+- À la fin de l'initialisation vous devriez voir un message similaire à :
 
-## Suggestions for a good README
+  ```text
+  Database ready to use. Enjoy! ;)
+  ```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+7) Importer les données
+- L'import des données est guidé dans le fichier [import.sh](import.sh). Le script contient des commentaires décrivant chaque étape.
+- Procédure synthétique :
 
-## Name
-Choose a self-explaining name for your project.
+  1. Copier le fichier `.dmp` dans le conteneur Oracle (expliqué dans `import.sh`).
+  2. Se connecter au conteneur Oracle et lancer `imp kolotv/kolotv file=/home/oracle/export_20260122.dmp full=yes ignore=yes` (ou la commande indiquée dans `import.sh`).
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+- L'import peut durer plusieurs minutes. À la fin vous devriez voir :
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+  ```text
+  Import terminated successfully with warnings.
+  ```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- Les warnings sont généralement sans conséquence et peuvent être ignorés. NE QUITTEZ PAS encore le conteneur tant que les étapes de debug ne sont pas exécutées.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+8) Exécuter le script de debug SQL
+- Entrez dans `sqlplus` avec l'utilisateur :
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+  ```text
+  sqlplus kolotv/kolotv
+  ```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- Copiez et collez le contenu du fichier [debug.sql](debug.sql) dans la session `sqlplus` et validez.
+- Une fois terminé, sortez du conteneur avec deux `exit` successifs si nécessaire.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+9) Tester l'application
+- Ouvrez votre navigateur et rendez-vous sur :
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+  ```text
+  http://localhost:8080/kolotv
+  ```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- Identifiants par défaut :
+  - Username : `admin`
+  - Password : `test`
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+- Si vous accédez à la page d'accueil après authentification, le projet fonctionne correctement.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+10) Rebuild rapide lors de modifications du code
+- Quand vous modifiez uniquement le code source de l'application (sans toucher à la base de données), il n'est pas nécessaire de reconstruire l'image Oracle.
+- Utilisez le script [rebuild.sh](rebuild.sh) pour reconstruire et redémarrer uniquement le conteneur applicatif :
 
-## License
-For open source projects, say how it is licensed.
+  ```bash
+  ./rebuild.sh
+  ```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Fichiers de référence
+- Script d'import : [import.sh](import.sh)
+- Script de rebuild (application) : [rebuild.sh](rebuild.sh)
+- Script SQL de debug : [debug.sql](debug.sql)
+
+Remarques et bonnes pratiques
+- Conservez le `.dmp` et les fichiers volumineux en dehors du dépôt (disque local ou partage).
+- Si vous rencontrez des problèmes, joignez les logs obtenus via `docker compose logs -f` lors de votre demande d'aide.
+- Pour toute modification importante (versions d'images, chemins), mettez à jour ce README.
+
+Besoin d'aide pour intégrer le lien Drive ? Collez le lien et je l'insère dans la section « Télécharger les fichiers manquants ».

@@ -1,7 +1,5 @@
 # KoloTV - Instructions d'installation
 
-Ce document décrit, pas à pas et de manière professionnelle, la procédure pour lancer le projet KoloTV en local avec Docker.
-
 **Prérequis**
 - Docker et Docker Compose installés sur la machine.
 - Espace disque suffisant pour les images Docker et l'import de la base.
@@ -115,4 +113,5 @@ Fichiers de référence
 
 Remarques et bonnes pratiques
 - Conservez le `.dmp` et les fichiers volumineux en dehors du dépôt (disque local ou partage).
+
 - Si vous rencontrez des problèmes, joignez les logs obtenus via `docker compose logs -f` lors de votre demande d'aide.

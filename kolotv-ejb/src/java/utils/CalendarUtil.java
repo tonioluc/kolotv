@@ -215,5 +215,14 @@ public class CalendarUtil {
         String result = date.format(formatter);
         return result.toUpperCase();
     }
-}
 
+    /**
+     * Retourne le numéro du jour de la semaine (1=Lundi, 2=Mardi, ..., 7=Dimanche)
+     * Conforme à ISO-8601 où Lundi = 1 et Dimanche = 7
+     * @param date La date
+     * @return Numéro du jour de la semaine (1-7)
+     */
+    public static int getDayOfWeekNumber(LocalDate date) {
+        return date.getDayOfWeek().getValue();
+    }
+}

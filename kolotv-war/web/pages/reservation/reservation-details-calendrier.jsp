@@ -174,6 +174,37 @@ table td{
   width: 100%;
   text-align: center;
 }
+
+/* Styles pour les heures de pointe */
+.heure-pointe-cell {
+  background-color: rgba(243, 156, 18, 0.15) !important;
+  border-left: 3px solid #f39c12 !important;
+}
+
+.heure-pointe-badge {
+  background-color: #f39c12;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: bold;
+  margin-bottom: 5px;
+  display: inline-block;
+}
+
+.calendar-cell-title.heure-pointe-horaire {
+  background-color: rgba(243, 156, 18, 0.3);
+  position: relative;
+}
+
+.calendar-cell-title.heure-pointe-horaire::after {
+  content: "🔥";
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+}
 </style>
 
 <%
@@ -322,15 +353,32 @@ table td{
                 LocalTime [] intervales = listeHoraire.get(i);
               %>
           <tr>
-            <td class="calendar-cell-title">
+            <%
+              // Vérifier si cette plage horaire est une heure de pointe (vérifier sur le premier jour de la liste)
+              boolean isHeurePointe = false;
+              double majorationMax = 0;
+              if (listeDate.length > 0) {
+                majorationMax = eta.getMajorationPourPlage(intervales[0], intervales[1], listeDate[0]);
+                isHeurePointe = majorationMax > 0;
+              }
+            %>
+            <td class="calendar-cell-title <%=isHeurePointe ? "heure-pointe-horaire" : ""%>">
               <%=intervales[0]%>
+              <% if (isHeurePointe) { %>
+                <br><span class="heure-pointe-badge">+<%=String.format("%.0f", majorationMax)%>%</span>
+              <% } %>
             </td>
             <% for(int j=0;j<listeDate.length;j++) { %>
             <%
               ReservationDetailsAvecDiffusion [] reservations = eta.getReservationByTime(intervales,listeDate[j]);
               double caCellule = eta.getCaParHoraire(); // CA pour cette cellule (jour + horaire)
+              boolean celluleHeurePointe = eta.hasHeureDePointe(intervales[0], intervales[1], listeDate[j]);
+              double majorationCellule = eta.getMajorationPourPlage(intervales[0], intervales[1], listeDate[j]);
               if(reservations != null && reservations.length>0) { %>
-            <td class="calendar-cell">
+            <td class="calendar-cell <%=celluleHeurePointe ? "heure-pointe-cell" : ""%>">
+              <% if (celluleHeurePointe) { %>
+                <span class="heure-pointe-badge"><i class="fa fa-fire"></i> +<%=String.format("%.0f", majorationCellule)%>%</span>
+              <% } %>
               <% for (int k=0;k<reservations.length && k<2;k++) {
                 if (reservations[k] != null) { %>
               <div class="event" onclick="ouvrirModal(event,'moduleLeger.jsp?but=reservation/reservation-details-fiche.jsp&id=<%=reservations[k].getId()%>','modalContent')">
@@ -357,8 +405,15 @@ table td{
               <% } %>
             </td>
 
-            <%  } else { %>
-            <td class="calendar-cell">
+            <%  } else { 
+              // Cellule vide - vérifier aussi si c'est une heure de pointe
+              boolean celluleVideHeurePointe = eta.hasHeureDePointe(intervales[0], intervales[1], listeDate[j]);
+              double majorationCelluleVide = eta.getMajorationPourPlage(intervales[0], intervales[1], listeDate[j]);
+            %>
+            <td class="calendar-cell <%=celluleVideHeurePointe ? "heure-pointe-cell" : ""%>">
+              <% if (celluleVideHeurePointe) { %>
+                <span class="heure-pointe-badge"><i class="fa fa-fire"></i> +<%=String.format("%.0f", majorationCelluleVide)%>%</span><br>
+              <% } %>
               <a href="<%=lien%>?but=reservation/reservation-groupe-saisie.jsp&date=<%=CalendarUtil.castDateToFormat(listeDate[j],formatter,DateTimeFormatter.ofPattern("yyyy-MM-dd"))%>&idSupport=<%=idSupport%>&heure=<%=intervales[0].format(DateTimeFormatter.ofPattern("HH:mm:ss"))%>">
                 <i class="fa fa-plus"></i>
               </a>

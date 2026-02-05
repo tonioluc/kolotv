@@ -3,6 +3,8 @@ docker exec -it oracle-db bash
 
 # 2 - Se connecter à SQL*Plus en tant qu'utilisateur SYSTEM
 sqlplus system/oracle
+
+# 2.1 - Ajouter l utilisateur kolotv
 CREATE USER kolotv IDENTIFIED BY kolotv;
 GRANT CONNECT, RESOURCE, DBA TO kolotv;
 ALTER USER kolotv DEFAULT TABLESPACE USERS;
@@ -11,8 +13,7 @@ exit;
 exit;   
 
 # 3 - Importer le fichier .dmp dans la base de données Oracle
-# (n'oubliez pas de modifier le chemin du fichier .dmp , le mien est dans /home/antonio/ITU/S5/mr-tahina/kolotv/export_20260122.dmp)
-docker cp /home/antonio/ITU/S5/mr-tahina/kolotv/export_20260122.dmp oracle-db:/home/oracle/
+docker cp export_20260122.dmp oracle-db:/home/oracle/
 
 # 4 - Entrer à nouveau dans le conteneur Oracle pour lancer l'importation
 docker exec -it oracle-db bash

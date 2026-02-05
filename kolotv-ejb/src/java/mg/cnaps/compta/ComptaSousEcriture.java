@@ -403,12 +403,12 @@ public class ComptaSousEcriture extends ClassFille {
     }
 
     private void testCompteExiste(Connection c) throws Exception{
-        ComptaCompte comptacompte = new ComptaCompte();
-        comptacompte.setCompte(this.compte);
-        ComptaCompte[] comptes = (ComptaCompte[]) CGenUtil.rechercher(comptacompte, null, null, c, "");
-        if(comptes.length <= 0){
-            throw new Exception("Compte "+compte+" invalide ou inexistant");
-        }
+        // ComptaCompte comptacompte = new ComptaCompte();
+        // comptacompte.setCompte(this.compte);
+        // ComptaCompte[] comptes = (ComptaCompte[]) CGenUtil.rechercher(comptacompte, null, null, c, "");
+        // if(comptes.length <= 0){
+        //     throw new Exception("Compte "+compte+" invalide ou inexistant");
+        // }
     }
 
     private boolean checkerValidation(Connection c) throws Exception{

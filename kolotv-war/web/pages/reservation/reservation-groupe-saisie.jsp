@@ -181,7 +181,7 @@
     pi.getFormu().getChamp("idclient").setAutre("onChange='"+onChangeParam2+"'");
 
     affichage.Champ.setAutre(pi.getFormufle().getChampFille("dateDiffusion"),"placeholder='"+Utilitaire.dateDuJour()+";"+Utilitaire.dateDuJour()+"' onclick=\"affChampCalendrier(this,'datedebut','datefin')\" onchange='updateNbSpot(this)'");
-    affichage.Champ.setAutre(pi.getFormufle().getChampFille("nbspot"),"readonly");
+    // affichage.Champ.setAutre(pi.getFormufle().getChampFille("nbspot"),"readonly");
     affichage.Champ.setDefaut(pi.getFormufle().getChampFille("pu"),"0");
     affichage.Champ.setDefaut(pi.getFormufle().getChampFille("nbspot"),"0");
     affichage.Champ.setDefaut(pi.getFormufle().getChampFille("datedebut"),Utilitaire.dateDuJour());
@@ -514,19 +514,11 @@
     }
     document.getElementById("nbSpotTotal").innerHTML = ""+total;
   }
-</script>
-<script>
+
   document.addEventListener("DOMContentLoaded", function () {
     <%=onChangeParam%>
   })
 </script>
-<%if (request.getParameter("idClient")!=null){%>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    <%=onChangeParam2%>
-  })
-</script>
-<%}%>
 <%
 } catch (Exception e) {
   e.printStackTrace();

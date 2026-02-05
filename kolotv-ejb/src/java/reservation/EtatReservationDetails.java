@@ -3,7 +3,8 @@ package reservation;
 import bean.AdminGen;
 import bean.CGenUtil;
 import duree.DisponibiliteHeure;
-import heuredepointe.HeureDePointe;
+import heurepointe.HeurePointe;
+import heurepointe.HeurePointeUtils;
 import utilitaire.ConstanteEtat;
 import utilitaire.UtilDB;
 import utilitaire.Utilitaire;
@@ -13,7 +14,6 @@ import utils.ConstanteStation;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -24,21 +24,13 @@ public class EtatReservationDetails {
     List<LocalTime[]> horaire;
     HashMap<String,Double[]> total = new HashMap<>();
     int dureeDiffuser;
-    double caParHoraire; // CA généré pour la plage horaire courante
-    HashMap<String, Double> totalCAParHoraire = new HashMap<>(); // CA par plage horaire (clé: heure début)
-    double totalCAGeneral = 0; // Total CA pour toute la grille
-    HashMap<String, HeureDePointe[]> heuresDePointeParJour = new HashMap<>(); // Cache des heures de pointe par jour
-    String idSupportFiltre; // Support filtré pour les heures de pointe
-    
     public EtatReservationDetails(String idSupport,String idTypeService,String dtMin,String dtMax) throws Exception {
         Connection c=null;
         try {
             c = new UtilDB().GetConn();
-            this.idSupportFiltre = idSupport;
             this.setListeDate(dtMin,dtMax);
             horaire = CalendarUtil.trierParReference(CalendarUtil.generateTimeIntervalsOfDay(60),LocalTime.now());
             this.setReservations(idSupport,idTypeService,dtMin,dtMax,c);
-            this.chargerHeuresDePointe(c); // Charger les heures de pointe
             this.setTotal();
         }
         catch (Exception e) {
@@ -95,10 +87,9 @@ public class EtatReservationDetails {
     }
 
     public void setTotal() {
-        // total[0] - Montant Total (sera recalculé après getReservationByTime)
+        // total[0] - Montant Total
         // total[1] - Duree de diffusion Total
         this.total = new HashMap<>();
-        this.totalCAGeneral = 0;
         for (String dt : listeDate) {
             double montantTotal = 0;
             double dureeTotal = 0;
@@ -106,9 +97,7 @@ public class EtatReservationDetails {
             if (v != null) {
                 for (Object o:v){
                     ReservationDetailsAvecDiffusion res = (ReservationDetailsAvecDiffusion) o;
-                    // Le CA total par jour reste le même (somme des montants des réservations)
                     montantTotal += res.getMontantTtc();
-                    this.totalCAGeneral += res.getMontantTtc();
                     if (res.getDuree()!=null) {
                         dureeTotal += Double.valueOf(res.getDuree());
                     }
@@ -116,6 +105,7 @@ public class EtatReservationDetails {
             }
             total.put(dt,new Double[]{montantTotal,dureeTotal});
         }
+
     }
 
     public boolean checkTime (LocalTime time,LocalTime time_min,LocalTime time_max) {
@@ -126,180 +116,89 @@ public class EtatReservationDetails {
     }
 
     /**
-     * Vérifie si une diffusion chevauche une plage horaire donnée
-     * @param heureDebut Heure de début de la diffusion
-     * @param heureFin Heure de fin de la diffusion
-     * @param slotDebut Début de la plage horaire
-     * @param slotFin Fin de la plage horaire
-     * @return true si la diffusion chevauche la plage horaire
+     * Vérifie si une réservation chevauche une tranche horaire
+     * Une diffusion de 08:58-09:03 chevauchera les tranches 08:00-09:00 ET 09:00-10:00
      */
-    public boolean chevauchePlageHoraire(LocalTime heureDebut, LocalTime heureFin, LocalTime slotDebut, LocalTime slotFin) {
-        // Une diffusion chevauche si elle ne se termine pas avant le début du slot
-        // et ne commence pas après la fin du slot
-        return !heureFin.isBefore(slotDebut) && !heureDebut.isAfter(slotFin) && heureFin.isAfter(slotDebut);
-    }
-
-    /**
-     * Calcule la durée de chevauchement entre une diffusion et une plage horaire
-     * @param heureDebut Heure de début de la diffusion
-     * @param heureFin Heure de fin de la diffusion
-     * @param slotDebut Début de la plage horaire
-     * @param slotFin Fin de la plage horaire
-     * @return Durée de chevauchement en secondes
-     */
-    public long getDureeChevauchement(LocalTime heureDebut, LocalTime heureFin, LocalTime slotDebut, LocalTime slotFin) {
-        // Trouver le début effectif du chevauchement
-        LocalTime debutEffectif = heureDebut.isAfter(slotDebut) ? heureDebut : slotDebut;
-        // Trouver la fin effective du chevauchement
-        LocalTime finEffective = heureFin.isBefore(slotFin) ? heureFin : slotFin;
-        
-        // Si pas de chevauchement, retourner 0
-        if (debutEffectif.isAfter(finEffective) || debutEffectif.equals(finEffective)) {
-            return 0;
+    public boolean chevaucheTrache(ReservationDetailsAvecDiffusion res, LocalTime trancheDebut, LocalTime trancheFin) {
+        if (res.getHeure() == null) {
+            return false;
         }
         
-        return CalendarUtil.getDuration(debutEffectif, finEffective);
-    }
-
-    /**
-     * Calcule le CA proportionnel pour une diffusion dans une plage horaire
-     * AVEC application des majorations pour les heures de pointe
-     * @param rd La réservation
-     * @param slotDebut Début de la plage horaire
-     * @param slotFin Fin de la plage horaire
-     * @param date Date de la diffusion (format dd/MM/yyyy)
-     * @return Le CA proportionnel avec majoration
-     */
-    public double getCAProportionnelAvecMajoration(ReservationDetailsAvecDiffusion rd, LocalTime slotDebut, LocalTime slotFin, String date) {
-        if (rd.getDuree() == null || rd.getDuree().isEmpty()) {
-            return 0;
-        }
-        
-        LocalTime heureDebut = LocalTime.parse(rd.getHeure());
-        int dureeTotale = Integer.parseInt(rd.getDuree());
-        LocalTime heureFin = heureDebut.plusSeconds(dureeTotale);
-        
-        // Calculer l'intersection entre la diffusion et le slot
-        LocalTime intersectionDebut = heureDebut.isAfter(slotDebut) ? heureDebut : slotDebut;
-        LocalTime intersectionFin = heureFin.isBefore(slotFin) ? heureFin : slotFin;
-        
-        if (intersectionDebut.isAfter(intersectionFin) || intersectionDebut.equals(intersectionFin)) {
-            return 0;
-        }
-        
-        // Récupérer les heures de pointe pour ce jour
-        HeureDePointe[] heuresDePointe = getHeuresDePointePourDate(date);
-        
-        // Prix par seconde de base
-        double prixParSeconde = rd.getMontantTtc() / (double) dureeTotale;
-        
-        // Calculer le CA en tenant compte des majorations
-        double caTotal = 0;
-        LocalTime currentTime = intersectionDebut;
-        
-        while (currentTime.isBefore(intersectionFin)) {
-            // Trouver la prochaine transition (fin de majoration ou début de majoration)
-            LocalTime nextTransition = intersectionFin;
-            double coefficientActuel = 1.0;
-            
-            // Vérifier si on est dans une heure de pointe
-            for (HeureDePointe hdp : heuresDePointe) {
-                LocalTime hdpDebut = LocalTime.parse(hdp.getHeureDebut());
-                LocalTime hdpFin = LocalTime.parse(hdp.getHeureFin());
-                
-                // Si on est dans cette heure de pointe
-                if ((currentTime.equals(hdpDebut) || currentTime.isAfter(hdpDebut)) && currentTime.isBefore(hdpFin)) {
-                    coefficientActuel = 1.0 + (hdp.getPourcentageMajoration() / 100.0);
-                    // La prochaine transition est la fin de cette heure de pointe ou la fin de l'intersection
-                    if (hdpFin.isBefore(nextTransition)) {
-                        nextTransition = hdpFin;
-                    }
-                }
-                // Si on n'est pas encore dans cette heure de pointe mais elle commence avant la fin
-                else if (currentTime.isBefore(hdpDebut) && hdpDebut.isBefore(nextTransition)) {
-                    nextTransition = hdpDebut;
-                }
+        try {
+            LocalTime heureDebut = LocalTime.parse(res.getHeure());
+            long dureeSecondes = 0;
+            if (res.getDuree() != null) {
+                dureeSecondes = Long.parseLong(res.getDuree());
             }
             
-            // Limiter à la fin de l'intersection
-            if (nextTransition.isAfter(intersectionFin)) {
-                nextTransition = intersectionFin;
-            }
+            LocalTime heureFin = heureDebut.plusSeconds(dureeSecondes);
             
-            // Calculer la durée de ce segment
-            long dureeSegment = CalendarUtil.getDuration(currentTime, nextTransition);
-            
-            // Ajouter le CA pour ce segment
-            caTotal += prixParSeconde * dureeSegment * coefficientActuel;
-            
-            // Passer au segment suivant
-            currentTime = nextTransition;
+            // La réservation chevauche la tranche si :
+            // - Elle commence avant la fin de la tranche ET
+            // - Elle se termine après le début de la tranche
+            return heureDebut.isBefore(trancheFin) && heureFin.isAfter(trancheDebut);
+        } catch (Exception e) {
+            return false;
         }
-        
-        return caTotal;
     }
 
     /**
-     * Calcule le CA proportionnel pour une diffusion dans une plage horaire (sans majoration - ancienne méthode)
-     * @param rd La réservation
-     * @param slotDebut Début de la plage horaire
-     * @param slotFin Fin de la plage horaire
-     * @return Le CA proportionnel
+     * Calcule la durée de diffusion effective dans une tranche horaire donnée
+     * Retourne la durée en secondes qui chevauche réellement la tranche
      */
-    public double getCAProportionnel(ReservationDetailsAvecDiffusion rd, LocalTime slotDebut, LocalTime slotFin) {
-        if (rd.getDuree() == null || rd.getDuree().isEmpty()) {
+    public int calculerDureeEffectiveDansTranche(ReservationDetailsAvecDiffusion res, LocalTime trancheDebut, LocalTime trancheFin) {
+        if (res.getHeure() == null || res.getDuree() == null) {
             return 0;
         }
         
-        LocalTime heureDebut = LocalTime.parse(rd.getHeure());
-        int dureeTotale = Integer.parseInt(rd.getDuree());
-        LocalTime heureFin = heureDebut.plusSeconds(dureeTotale);
-        
-        long dureeChevauchement = getDureeChevauchement(heureDebut, heureFin, slotDebut, slotFin);
-        
-        if (dureeTotale <= 0 || dureeChevauchement <= 0) {
+        try {
+            LocalTime heureDebut = LocalTime.parse(res.getHeure());
+            long dureeSecondes = Long.parseLong(res.getDuree());
+            
+            if (dureeSecondes <= 0) {
+                return 0;
+            }
+            
+            LocalTime heureFin = heureDebut.plusSeconds(dureeSecondes);
+            
+            // Calculer le chevauchement entre la réservation et la tranche
+            LocalTime debutChevauchement = heureDebut.isAfter(trancheDebut) ? heureDebut : trancheDebut;
+            LocalTime finChevauchement = heureFin.isBefore(trancheFin) ? heureFin : trancheFin;
+            
+            // Vérifier s'il y a un chevauchement
+            if (debutChevauchement.isBefore(finChevauchement) || debutChevauchement.equals(finChevauchement)) {
+                // Durée du chevauchement en secondes
+                long dureeChevauchement = java.time.Duration.between(debutChevauchement, finChevauchement).getSeconds();
+                return (int) dureeChevauchement;
+            }
+            
+            return 0;
+        } catch (Exception e) {
             return 0;
         }
-        
-        // Calculer le CA proportionnel
-        double proportion = (double) dureeChevauchement / (double) dureeTotale;
-        return rd.getMontantTtc() * proportion;
     }
 
     public ReservationDetailsAvecDiffusion [] getReservationByTime(LocalTime [] times,String date) throws Exception {
         List<ReservationDetailsAvecDiffusion> res = new ArrayList<>();
         Vector liste = this.getReservations().get(date);
         this.dureeDiffuser = 0;
-        this.caParHoraire = 0;
         if (liste!=null){
             for (Object d : liste) {
                 ReservationDetailsAvecDiffusion rd = (ReservationDetailsAvecDiffusion) d;
-                LocalTime heureDebut = LocalTime.parse(rd.getHeure());
-                
-                // Calculer l'heure de fin de la diffusion
-                LocalTime heureFin = heureDebut;
-                if (rd.getDuree() != null && !rd.getDuree().isEmpty()) {
-                    heureFin = heureDebut.plusSeconds(Long.parseLong(rd.getDuree()));
-                }
-                
-                // Vérifier si la diffusion chevauche cette plage horaire
-                if (chevauchePlageHoraire(heureDebut, heureFin, times[0], times[1])) {
-                    if (rd.getEtatMere() >= ConstanteEtat.getEtatValider()) {
-                        // Calculer la durée de chevauchement pour cette plage
-                        long dureeChevauchement = getDureeChevauchement(heureDebut, heureFin, times[0], times[1]);
-                        this.dureeDiffuser += dureeChevauchement;
-                        
-                        // Calculer le CA proportionnel AVEC majoration pour les heures de pointe
-                        double caProportionnel = getCAProportionnelAvecMajoration(rd, times[0], times[1], date);
-                        this.caParHoraire += caProportionnel;
+                // Utiliser la logique de chevauchement au lieu de vérifier seulement l'heure de début
+                // Ainsi une diffusion de 08:58-09:03 apparaîtra dans les deux tranches 08:00-09:00 ET 09:00-10:00
+                if (chevaucheTrache(rd, times[0], times[1])) {
+
+                    if (rd.getEtatMere()>= ConstanteEtat.getEtatValider()){
+                        if (rd.getDuree()!=null){
+                            // Calculer la durée effective dans cette tranche (pas la durée totale)
+                            this.dureeDiffuser += calculerDureeEffectiveDansTranche(rd, times[0], times[1]);
+                        }
                     }
                     res.add(rd);
                 }
             }
         }
-        // Stocker le CA pour cette plage horaire
-        String cleHoraire = times[0].toString() + "-" + date;
-        totalCAParHoraire.put(cleHoraire, this.caParHoraire);
         return res.toArray(new ReservationDetailsAvecDiffusion[]{});
     }
 
@@ -341,118 +240,168 @@ public class EtatReservationDetails {
         return result;
     }
 
-    public double getCaParHoraire() {
-        return caParHoraire;
-    }
-
-    public void setCaParHoraire(double caParHoraire) {
-        this.caParHoraire = caParHoraire;
-    }
-
-    public double getTotalCAGeneral() {
-        return totalCAGeneral;
-    }
-
-    public void setTotalCAGeneral(double totalCAGeneral) {
-        this.totalCAGeneral = totalCAGeneral;
-    }
-
-    public HashMap<String, Double> getTotalCAParHoraire() {
-        return totalCAParHoraire;
-    }
-
-    public void setTotalCAParHoraire(HashMap<String, Double> totalCAParHoraire) {
-        this.totalCAParHoraire = totalCAParHoraire;
-    }
-
-    // Calculer le total CA pour une plage horaire donnée (toutes les dates)
-    public double getTotalCAForHoraire(LocalTime[] times) {
-        double totalCA = 0;
-        for (String date : listeDate) {
-            String cle = times[0].toString() + "-" + date;
-            Double ca = totalCAParHoraire.get(cle);
-            if (ca != null) {
-                totalCA += ca;
-            }
-        }
-        return totalCA;
-    }
-
     /**
-     * Charge les heures de pointe pour tous les jours de la semaine
+     * Calcule le montant avec majoration d'heure de pointe pour une réservation
+     * Si la diffusion chevauche une heure de pointe, applique la majoration correspondante
+     * @param res La réservation à calculer
+     * @param c Connection à la base de données (peut être null)
+     * @return Le montant avec majoration appliquée
      */
-    public void chargerHeuresDePointe(Connection c) throws Exception {
-        // Charger les heures de pointe pour chaque jour (1-7)
-        for (int jour = 1; jour <= 7; jour++) {
-            HeureDePointe[] heures = HeureDePointe.getHeuresDePointe(jour, this.idSupportFiltre, c);
-            heuresDePointeParJour.put(String.valueOf(jour), heures);
+    public static double calculerMontantAvecMajoration(ReservationDetailsAvecDiffusion res, Connection c) throws Exception {
+        if (res == null || res.getHeure() == null || res.getDuree() == null) {
+            return res != null ? res.getMontantTtc() : 0;
         }
-    }
-
-    /**
-     * Récupère les heures de pointe pour une date donnée
-     * @param date Date au format dd/MM/yyyy
-     * @return Liste des heures de pointe pour ce jour
-     */
-    public HeureDePointe[] getHeuresDePointePourDate(String date) {
+        
         try {
-            // Convertir la date en jour de la semaine
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            LocalDate localDate = LocalDate.parse(date, formatter);
-            int jour = CalendarUtil.getDayOfWeekNumber(localDate);
-            
-            HeureDePointe[] heures = heuresDePointeParJour.get(String.valueOf(jour));
-            if (heures != null) {
-                return heures;
+            long dureeSecondes = Long.parseLong(res.getDuree());
+            if (dureeSecondes <= 0) {
+                return res.getMontantTtc();
             }
+            
+            return HeurePointeUtils.calculerPrixAvecMajoration(
+                res.getMontantTtc(),
+                res.getHeure(),
+                dureeSecondes,
+                res.getIdSupport(),
+                c
+            );
         } catch (Exception e) {
-            e.printStackTrace();
+            // En cas d'erreur, retourner le montant de base
+            return res.getMontantTtc();
         }
-        return new HeureDePointe[0];
     }
 
     /**
-     * Vérifie si une plage horaire contient des heures de pointe pour une date donnée
-     * @param slotDebut Début de la plage
-     * @param slotFin Fin de la plage
-     * @param date Date au format dd/MM/yyyy
-     * @return true si la plage contient des heures de pointe
+     * Calcule le montant proportionnel avec majoration d'heure de pointe
+     * pour une partie d'une diffusion dans une tranche horaire donnée
+     * @param res La réservation
+     * @param trancheDebut Début de la tranche horaire
+     * @param trancheFin Fin de la tranche horaire
+     * @param c Connection à la base de données
+     * @return Le montant proportionnel avec majoration pour cette tranche
      */
-    public boolean hasHeureDePointe(LocalTime slotDebut, LocalTime slotFin, String date) {
-        HeureDePointe[] heures = getHeuresDePointePourDate(date);
-        for (HeureDePointe hdp : heures) {
-            LocalTime hdpDebut = LocalTime.parse(hdp.getHeureDebut());
-            LocalTime hdpFin = LocalTime.parse(hdp.getHeureFin());
-            
-            // Vérifier le chevauchement
-            if (!slotFin.isBefore(hdpDebut) && !slotDebut.isAfter(hdpFin) && slotFin.isAfter(hdpDebut)) {
-                return true;
+    public double calculerMontantProportionnelAvecMajoration(ReservationDetailsAvecDiffusion res, 
+            LocalTime trancheDebut, LocalTime trancheFin, Connection c) throws Exception {
+        
+        if (res.getHeure() == null || res.getDuree() == null) {
+            return 0;
+        }
+        
+        boolean estOuvert = false;
+        try {
+            if (c == null) {
+                c = new UtilDB().GetConn();
+                estOuvert = true;
             }
-        }
-        return false;
-    }
-
-    /**
-     * Récupère le pourcentage de majoration maximum pour une plage horaire
-     * @param slotDebut Début de la plage
-     * @param slotFin Fin de la plage
-     * @param date Date au format dd/MM/yyyy
-     * @return Pourcentage de majoration maximum (0 si pas d'heure de pointe)
-     */
-    public double getMajorationPourPlage(LocalTime slotDebut, LocalTime slotFin, String date) {
-        double maxMajoration = 0;
-        HeureDePointe[] heures = getHeuresDePointePourDate(date);
-        for (HeureDePointe hdp : heures) {
-            LocalTime hdpDebut = LocalTime.parse(hdp.getHeureDebut());
-            LocalTime hdpFin = LocalTime.parse(hdp.getHeureFin());
             
-            // Vérifier le chevauchement
-            if (!slotFin.isBefore(hdpDebut) && !slotDebut.isAfter(hdpFin) && slotFin.isAfter(hdpDebut)) {
-                if (hdp.getPourcentageMajoration() > maxMajoration) {
-                    maxMajoration = hdp.getPourcentageMajoration();
+            LocalTime heureDebut = LocalTime.parse(res.getHeure());
+            long dureeSecondes = Long.parseLong(res.getDuree());
+            
+            if (dureeSecondes <= 0) {
+                return 0;
+            }
+            
+            LocalTime heureFin = heureDebut.plusSeconds(dureeSecondes);
+            
+            // Calculer le chevauchement entre la réservation et la tranche
+            LocalTime debutChevauchement = heureDebut.isAfter(trancheDebut) ? heureDebut : trancheDebut;
+            LocalTime finChevauchement = heureFin.isBefore(trancheFin) ? heureFin : trancheFin;
+            
+            // Vérifier s'il y a un chevauchement
+            if (!debutChevauchement.isBefore(finChevauchement) && !debutChevauchement.equals(finChevauchement)) {
+                return 0;
+            }
+            
+            long dureeChevauchement = java.time.Duration.between(debutChevauchement, finChevauchement).getSeconds();
+            if (dureeChevauchement <= 0) {
+                return 0;
+            }
+            
+            // Prix de base par seconde
+            double prixParSeconde = res.getMontantTtc() / dureeSecondes;
+            double prixBasePartie = prixParSeconde * dureeChevauchement;
+            
+            // Récupérer les heures de pointe pour ce support
+            HeurePointe[] heuresPointe = HeurePointe.getHeuresPointeBySupport(res.getIdSupport(), c);
+            
+            if (heuresPointe == null || heuresPointe.length == 0) {
+                return prixBasePartie;
+            }
+            
+            // Calculer la majoration pour la partie de cette tranche
+            double montantFinal = 0;
+            long dureeTraitee = 0;
+            
+            for (HeurePointe hp : heuresPointe) {
+                long dureeEnHeurePointe = hp.calculerDureeChevauchement(debutChevauchement, finChevauchement);
+                
+                if (dureeEnHeurePointe > 0) {
+                    double majoration = 1 + (hp.getPourcentageMajoration() / 100.0);
+                    montantFinal += prixParSeconde * dureeEnHeurePointe * majoration;
+                    dureeTraitee += dureeEnHeurePointe;
                 }
             }
+            
+            // Ajouter la partie non majorée
+            long dureeNormale = dureeChevauchement - dureeTraitee;
+            if (dureeNormale > 0) {
+                montantFinal += prixParSeconde * dureeNormale;
+            }
+            
+            return montantFinal;
+            
+        } finally {
+            if (c != null && estOuvert) {
+                c.close();
+            }
         }
-        return maxMajoration;
+    }
+
+    /**
+     * Vérifie si une réservation chevauche une heure de pointe
+     * @param res La réservation à vérifier
+     * @param c Connection à la base de données
+     * @return true si la réservation chevauche une heure de pointe
+     */
+    public static boolean estEnHeurePointe(ReservationDetailsAvecDiffusion res, Connection c) throws Exception {
+        if (res == null || res.getHeure() == null || res.getDuree() == null) {
+            return false;
+        }
+        
+        try {
+            long dureeSecondes = Long.parseLong(res.getDuree());
+            return HeurePointeUtils.chevaucheHeurePointe(
+                res.getHeure(),
+                dureeSecondes,
+                res.getIdSupport(),
+                c
+            );
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Obtient les détails de la majoration pour une réservation
+     * @param res La réservation
+     * @param c Connection à la base de données
+     * @return Les détails de la majoration
+     */
+    public static HeurePointeUtils.DetailMajoration getDetailMajoration(ReservationDetailsAvecDiffusion res, Connection c) throws Exception {
+        if (res == null || res.getHeure() == null || res.getDuree() == null) {
+            HeurePointeUtils.DetailMajoration detail = new HeurePointeUtils.DetailMajoration();
+            detail.setPrixBase(res != null ? res.getMontantTtc() : 0);
+            detail.setPrixFinal(res != null ? res.getMontantTtc() : 0);
+            return detail;
+        }
+        
+        long dureeSecondes = Long.parseLong(res.getDuree());
+        return HeurePointeUtils.calculerDetailMajoration(
+            res.getMontantTtc(),
+            res.getHeure(),
+            dureeSecondes,
+            res.getIdSupport(),
+            c
+        );
     }
 }

@@ -48,14 +48,32 @@ END;
 -- Insertion des données d'exemple (heures de pointe)
 -- Lundi 12h-14h avec majoration de 10%
 INSERT INTO HEUREDEPOINTE (ID, JOUR, HEUREDEBUT, HEUREFIN, POURCENTAGEMAJORATION, LIBELLE, ETAT) 
-VALUES ('HDP' || LPAD(SEQ_HEUREDEPOINTE.NEXTVAL, 6, '0'), 1, '12:00:00', '14:00:00', 10, 'Lundi midi - Heure de pointe', 5);
+VALUES ('HDP' || LPAD(SEQ_HEUREDEPOINTE.NEXTVAL, 6, '0'), 1, '10:00:00', '11:00:00', 10, 'Lundi midi - Heure de pointe', 5);
 
 -- Lundi 16h-19h avec majoration de 10%
 INSERT INTO HEUREDEPOINTE (ID, JOUR, HEUREDEBUT, HEUREFIN, POURCENTAGEMAJORATION, LIBELLE, ETAT) 
-VALUES ('HDP' || LPAD(SEQ_HEUREDEPOINTE.NEXTVAL, 6, '0'), 1, '16:00:00', '19:00:00', 10, 'Lundi après-midi - Heure de pointe', 5);
+VALUES ('HDP' || LPAD(SEQ_HEUREDEPOINTE.NEXTVAL, 6, '0'), 1, '06:00:00', '07:00:00', 10, 'Lundi après-midi - Heure de pointe', 5);
 
 -- Samedi 08h-15h avec majoration de 10%
 INSERT INTO HEUREDEPOINTE (ID, JOUR, HEUREDEBUT, HEUREFIN, POURCENTAGEMAJORATION, LIBELLE, ETAT) 
 VALUES ('HDP' || LPAD(SEQ_HEUREDEPOINTE.NEXTVAL, 6, '0'), 6, '08:00:00', '15:00:00', 10, 'Samedi matin - Heure de pointe', 5);
+
+COMMIT;
+
+-- ============================================
+-- Ajout du menu pour accéder à la gestion des Heures de Pointe
+-- ============================================
+
+-- Menu principal "Heures de Pointe" sous Configurations (MNDT150500134001)
+INSERT INTO menudynamique (id, libelle, icone, href, rang, niveau, id_pere) 
+VALUES ('MENUDYN_HDP001', 'Heures de Pointe', 'fa fa-clock-o', '#', 10, 2, 'MNDT150500134001');
+
+-- Sous-menu: Liste des heures de pointe
+INSERT INTO menudynamique (id, libelle, icone, href, rang, niveau, id_pere) 
+VALUES ('MENUDYN_HDP002', 'Liste', 'fa fa-list', 'module.jsp?but=heuredepointe/heuredepointe-liste.jsp', 1, 3, 'MENUDYN_HDP001');
+
+-- Sous-menu: Ajouter une heure de pointe
+INSERT INTO menudynamique (id, libelle, icone, href, rang, niveau, id_pere) 
+VALUES ('MENUDYN_HDP003', 'Ajouter', 'fa fa-plus', 'module.jsp?but=heuredepointe/heuredepointe-saisie.jsp', 2, 3, 'MENUDYN_HDP001');
 
 COMMIT;

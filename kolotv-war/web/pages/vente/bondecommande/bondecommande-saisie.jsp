@@ -42,8 +42,8 @@
     pi.getFormu().getChamp("etat").setVisible(false);
     pi.getFormu().getChamp("designation").setVisible(false);
     
-    pi.getFormu().getChamp("echeance").setLibelle("Ech&eacute;ance");
-    pi.getFormu().getChamp("modereglement").setLibelle("Mode de r&egrave;glement");
+     pi.getFormu().getChamp("echeance").setLibelle("Ech&eacute;ance");
+     pi.getFormu().getChamp("modereglement").setLibelle("Mode de r&egrave;glement");
 
     Liste[] liste = new Liste[4];
     ModePaiement mp = new ModePaiement();
@@ -108,7 +108,7 @@
     pi.getFormufle().getChamp("remarque_0").setLibelle("Designation");
         pi.getFormufle().getChamp("remise_0").setLibelle("Remise");
         pi.getFormufle().getChamp("uniteRemise_0").setLibelle("Unit&eacute; de remise");
-        pi.getFormufle().getChamp("reference_0").setLibelle("R&eacute;f&eacute;rence");
+         pi.getFormufle().getChamp("reference_0").setLibelle("R&eacute;f&eacute;rence");
 
 //    affichage.Champ.setVisible(pi.getFormufle().getChampFille("remise"), false);
     affichage.Champ.setVisible(pi.getFormufle().getChampFille("idbc"),false);
@@ -124,7 +124,7 @@
     affichage.Champ.setAutre(pi.getFormufle().getChampFille("produit"),"onchange='calculerMontantV2()'");
     affichage.Champ.setAutre(pi.getFormufle().getChampFille("uniteRemise"),"onchange='changeUnite(this)'");
 
-        for (int i = 0; i < nombreLigne; i++) {
+    for (int i = 0; i < nombreLigne; i++) {
         pi.getFormufle().getChamp("produit_" + i).setLibelle("Service m&eacute;dia");
         pi.getFormufle().getChamp("quantite_"+i).setDefaut("0");
         pi.getFormufle().getChamp("idDevise_"+i).setDefaut("AR");
@@ -151,7 +151,8 @@
         pi.setDefautFille(ocr.getFille());
     }
 
-    String[] order = {"reference","produit", "remarque", "quantite", "pu","remise","uniteRemise", "tva" ,"idDevise"};
+     String[] order = {"reference","produit", "remarque", "quantite", "pu","remise","uniteRemise", "tva" ,"idDevise"};
+    //String[] order = {"produit", "remarque", "quantite", "pu","remise","uniteRemise", "tva" ,"idDevise"};
     pi.getFormufle().setColOrdre(order);
 
     session.removeAttribute("ocr");
@@ -174,7 +175,8 @@
     String butApresPost = "vente/bondecommande/bondecommande-fiche.jsp";
     String colonneMere = "idbc";
     //Preparer les affichages
-     pi.preparerDataFormu();
+  
+    pi.preparerDataFormu();
     pi.getFormu().makeHtmlInsertTabIndex();
     pi.getFormufle().makeHtmlInsertTableauIndex();
 

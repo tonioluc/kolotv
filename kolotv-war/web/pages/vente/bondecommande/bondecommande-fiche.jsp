@@ -35,8 +35,8 @@
     pc.getChampByName("id").setVisible(false);
     pc.getChampByName("etat").setLibelle("&Eacute;tat");
       pc.getChampByName("modepaiement").setVisible(false);
-      pc.getChampByName("echeance").setLibelle("Ech&eacute;ance");
-      pc.getChampByName("modereglement").setLibelle("Mode de r&egrave;glement");
+       pc.getChampByName("echeance").setLibelle("Ech&eacute;ance");
+       pc.getChampByName("modereglement").setLibelle("Mode de r&egrave;glement");
     String pageActuel = "vente/bondecommande/bondecommande-fiche.jsp";
 
     String lien = (String) session.getValue("lien");

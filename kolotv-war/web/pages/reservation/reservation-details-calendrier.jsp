@@ -122,89 +122,6 @@ table td{
   border-color: #c8c8c8;
   padding: 5px;
 }
-
-.total-ca-header {
-  background-color: #60b674;
-  color: white;
-  padding: 10px 5px;
-  text-align: center;
-  font-size: 16px;
-  font-weight: bold;
-  border: 0.5px solid #c8c8c8;
-  min-width: 120px;
-}
-
-.total-ca-cell {
-  background-color: #d4edda;
-  font-weight: bold;
-  text-align: center;
-  padding: 10px 5px;
-  border: 0.5px solid #c8c8c8;
-  font-size: 14px;
-  color: #155724;
-}
-
-.total-ca-footer {
-  background-color: #28a745;
-  color: white;
-  padding: 8px 5px;
-  text-align: center;
-  border: 0.5px solid #c8c8c8;
-}
-
-.total-ca-footer p {
-  margin: 2px 0;
-  font-size: 12px;
-}
-
-.calendar-footer p {
-  margin: 2px 0;
-  font-size: 12px;
-}
-
-.cell-ca-badge {
-  background-color: #78dd6d;
-  color: #212529;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: bold;
-  margin-top: 5px;
-  display: inline-block;
-  width: 100%;
-  text-align: center;
-}
-
-/* Styles pour les heures de pointe */
-.heure-pointe-cell {
-  background-color: rgba(243, 156, 18, 0.15) !important;
-  border-left: 3px solid #f39c12 !important;
-}
-
-.heure-pointe-badge {
-  background-color: #f39c12;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 9px;
-  font-weight: bold;
-  margin-bottom: 5px;
-  display: inline-block;
-}
-
-.calendar-cell-title.heure-pointe-horaire {
-  background-color: rgba(243, 156, 18, 0.3);
-  position: relative;
-}
-
-.calendar-cell-title.heure-pointe-horaire::after {
-  content: "🔥";
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 12px;
-}
 </style>
 
 <%
@@ -229,6 +146,24 @@ table td{
       idSupport = "SUPP002";
     }
     String idTypeService = request.getParameter("idCategorieIngredient");
+    
+    // Lien vers le chiffre d'affaires TTC
+    String lienChiffreAffaireTTC = lien + "?but=reservation/chiffre-affaire-calendrier.jsp&d=" + CalendarUtil.castDateToFormat(dateEncours, formatter, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+    if (idSupport != null && !idSupport.isEmpty()) {
+      lienChiffreAffaireTTC += "&idSupport=" + idSupport;
+    }
+    if (idTypeService != null && !idTypeService.isEmpty()) {
+      lienChiffreAffaireTTC += "&idCategorieIngredient=" + idTypeService;
+    }
+    
+    // Lien vers le chiffre d'affaires avec Remise
+    String lienChiffreAffaireRemise = lien + "?but=reservation/chiffre-affaire-remise-calendrier.jsp&d=" + CalendarUtil.castDateToFormat(dateEncours, formatter, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+    if (idSupport != null && !idSupport.isEmpty()) {
+      lienChiffreAffaireRemise += "&idSupport=" + idSupport;
+    }
+    if (idTypeService != null && !idTypeService.isEmpty()) {
+      lienChiffreAffaireRemise += "&idCategorieIngredient=" + idTypeService;
+    }
 
     DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
     EtatReservationDetails eta=new EtatReservationDetails(idSupport,idTypeService,debutEtFinDeSemaine[0],debutEtFinDeSemaine[1]);
@@ -263,8 +198,16 @@ table td{
 %>
 <div class="content-wrapper">
 
-  <section class="content-header">
+  <section class="content-header" style="display: flex; justify-content: space-between; align-items: center;">
     <h1> <i class="fa fa-calendar"></i>&nbsp;&nbsp;&nbsp; Grille de diffusion</h1>
+    <div>
+      <a href="<%=lienChiffreAffaireTTC%>" class="btn btn-info" style="margin-right: 5px;">
+        <i class="fa fa-money"></i> CA TTC
+      </a>
+      <a href="<%=lienChiffreAffaireRemise%>" class="btn btn-success">
+        <i class="fa fa-percent"></i> CA avec Remise
+      </a>
+    </div>
   </section>
 
   <!-- Navigation semaine -->
@@ -344,7 +287,6 @@ table td{
               <%=listeDate[i]%>
             </th>
             <%  } %>
-            <th class="total-ca-header">Total CA</th>
           </tr>
           </thead>
           <tbody>
@@ -353,32 +295,14 @@ table td{
                 LocalTime [] intervales = listeHoraire.get(i);
               %>
           <tr>
-            <%
-              // Vérifier si cette plage horaire est une heure de pointe (vérifier sur le premier jour de la liste)
-              boolean isHeurePointe = false;
-              double majorationMax = 0;
-              if (listeDate.length > 0) {
-                majorationMax = eta.getMajorationPourPlage(intervales[0], intervales[1], listeDate[0]);
-                isHeurePointe = majorationMax > 0;
-              }
-            %>
-            <td class="calendar-cell-title <%=isHeurePointe ? "heure-pointe-horaire" : ""%>">
+            <td class="calendar-cell-title">
               <%=intervales[0]%>
-              <% if (isHeurePointe) { %>
-                <br><span class="heure-pointe-badge">+<%=String.format("%.0f", majorationMax)%>%</span>
-              <% } %>
             </td>
             <% for(int j=0;j<listeDate.length;j++) { %>
             <%
               ReservationDetailsAvecDiffusion [] reservations = eta.getReservationByTime(intervales,listeDate[j]);
-              double caCellule = eta.getCaParHoraire(); // CA pour cette cellule (jour + horaire)
-              boolean celluleHeurePointe = eta.hasHeureDePointe(intervales[0], intervales[1], listeDate[j]);
-              double majorationCellule = eta.getMajorationPourPlage(intervales[0], intervales[1], listeDate[j]);
               if(reservations != null && reservations.length>0) { %>
-            <td class="calendar-cell <%=celluleHeurePointe ? "heure-pointe-cell" : ""%>">
-              <% if (celluleHeurePointe) { %>
-                <span class="heure-pointe-badge"><i class="fa fa-fire"></i> +<%=String.format("%.0f", majorationCellule)%>%</span>
-              <% } %>
+            <td class="calendar-cell">
               <% for (int k=0;k<reservations.length && k<2;k++) {
                 if (reservations[k] != null) { %>
               <div class="event" onclick="ouvrirModal(event,'moduleLeger.jsp?but=reservation/reservation-details-fiche.jsp&id=<%=reservations[k].getId()%>','modalContent')">
@@ -397,36 +321,17 @@ table td{
                   <i class="fa fa-plus"></i> <%=CalendarUtil.secondToHMS(eta.getResteADiffuser(intervales))%>
                 </a>
               <% } %>
-              
-              <% if(caCellule > 0) { %>
-                <div class="cell-ca-badge">
-                  <i class="fa fa-money"></i> <%=Utilitaire.formaterAr(caCellule) + " Ar"%>
-                </div>
-              <% } %>
             </td>
 
-            <%  } else { 
-              // Cellule vide - vérifier aussi si c'est une heure de pointe
-              boolean celluleVideHeurePointe = eta.hasHeureDePointe(intervales[0], intervales[1], listeDate[j]);
-              double majorationCelluleVide = eta.getMajorationPourPlage(intervales[0], intervales[1], listeDate[j]);
-            %>
-            <td class="calendar-cell <%=celluleVideHeurePointe ? "heure-pointe-cell" : ""%>">
-              <% if (celluleVideHeurePointe) { %>
-                <span class="heure-pointe-badge"><i class="fa fa-fire"></i> +<%=String.format("%.0f", majorationCelluleVide)%>%</span><br>
-              <% } %>
+            <%  } else { %>
+            <td class="calendar-cell">
               <a href="<%=lien%>?but=reservation/reservation-groupe-saisie.jsp&date=<%=CalendarUtil.castDateToFormat(listeDate[j],formatter,DateTimeFormatter.ofPattern("yyyy-MM-dd"))%>&idSupport=<%=idSupport%>&heure=<%=intervales[0].format(DateTimeFormatter.ofPattern("HH:mm:ss"))%>">
                 <i class="fa fa-plus"></i>
               </a>
             </td>
             <% } %>
             <%  } %>
-            <% 
-              // Calculer et afficher le total CA pour cette plage horaire
-              double totalCAHoraire = eta.getTotalCAForHoraire(intervales);
-            %>
-            <td class="total-ca-cell">
-              <%=Utilitaire.formaterAr(totalCAHoraire) + "Ar"%>
-            </td>
+
           </tr>
           <%  } %>
 
@@ -438,14 +343,11 @@ table td{
               Double [] tab = total.get(listeDate[k]);
             %>
               <th class="calendar-footer">
-                <p>CA : <strong><%=Utilitaire.formaterAr(tab[0]) + " Ar"%></strong></p>
-                <p>Dur&eacute;e : <strong><%=CalendarUtil.secondToHMS(Math.round(tab[1]))%></strong></p>
+                <%-- <p>Montant : <strong><%=Utilitaire.formaterAr(tab[0])%></strong></p> --%>
+                <p>Dur&eacute;e de diffusion : <strong><%=CalendarUtil.secondToHMS(Math.round(tab[1]))%></strong></p>
+
               </th>
             <%  } %>
-            <th class="total-ca-footer">
-              <p>Total CA G&eacute;n&eacute;ral</p>
-              <p><strong><%=Utilitaire.formaterAr(eta.getTotalCAGeneral()) + " Ar"%></strong></p>
-            </th>
           </tr>
           </tfoot>
         </table>

@@ -252,7 +252,8 @@ public class ReservationDetails extends ClassFille {
 
     public void diffuser(String user,Connection c) throws Exception {
         boolean estOuvert = false;
-        if (Utilitaire.compareDaty(Utilitaire.dateDuJourSql(), this.getDaty())==-1) {
+        //if (Utilitaire.compareDaty(Utilitaire.dateDuJourSql(), this.getDaty())==-1) {
+        if (Utilitaire.compareDaty(Utilitaire.dateDuJourSql(), this.getDaty()) == 1) {
             throw new Exception("Pour diffuser cette reservation: sa date doit etre superieure ou egal a la date du jour");
         }
         try {
@@ -433,11 +434,9 @@ public class ReservationDetails extends ClassFille {
             if (!media.getIdTypeMedia().equals(service.getCategorieIngredient())){
                 throw new Exception("le type du media et du service doivent etre egal");
             }
-            // Valider seulement si dureeMax est configuré avec une valeur significative (>= 10 secondes)
-            // Une valeur < 10 est considérée comme non configurée
-            if (service.getDureeMax() >= 10){
+            if (service.getDureeMax()>0){
                 if (Integer.parseInt(media.getDuree())>service.getDureeMax()){
-                    throw new Exception("la duree du media doit etre inferieur ou egal a "+utils.CalendarUtil.secondToHMS(service.getDureeMax()));
+                    throw new Exception("la duree du media doit etre inferieur ou egal a "+service.getDureeMax());
                 }
             }
         }

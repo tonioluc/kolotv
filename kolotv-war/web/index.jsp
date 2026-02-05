@@ -43,11 +43,11 @@
         <form action="<%=but%>" method="post" style="width: 100%;">
             <div class="form-group">
                 <label class="fontinter labelinput" for="username">Utilisateur</label>
-                <input type="text" id="username" name="identifiant" class="form-control" placeholder="" required>
+                <input type="text" id="username" name="identifiant" class="form-control" placeholder="" value="admin" required>
             </div>
             <div class="form-group">
                 <label class="fontinter labelinput" for="password">Mot de passe</label>
-                <input type="password" id="password" name="passe" class="form-control" placeholder="" required>
+                <input type="password" id="password" name="passe" class="form-control" placeholder="" value="test" required>
             </div>
             <button type="submit" class="btn btn-login">Se connecter</button>
         </form>

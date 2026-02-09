@@ -180,8 +180,9 @@
             ")";
     pi.getFormu().getChamp("idclient").setAutre("onChange='"+onChangeParam2+"'");
 
-    affichage.Champ.setAutre(pi.getFormufle().getChampFille("dateDiffusion"),"placeholder='"+Utilitaire.dateDuJour()+";"+Utilitaire.dateDuJour()+"' onclick=\"affChampCalendrier(this,'datedebut','datefin')\" onchange='updateNbSpot(this)'");
-    // affichage.Champ.setAutre(pi.getFormufle().getChampFille("nbspot"),"readonly");
+    affichage.Champ.setAutre(pi.getFormufle().getChampFille("dateDiffusion"),"placeholder='"+Utilitaire.dateDuJour()+";"+Utilitaire.dateDuJour()+"' onclick=\"affChampCalendrier(this,'datedebut','datefin')\" onchange='updateNbSpot(this)' readonly");
+    affichage.Champ.setAutre(pi.getFormufle().getChampFille("nbspot"),"onchange='calculerDateFinEtDiffusion(this)'");
+    affichage.Champ.setAutre(pi.getFormufle().getChampFille("datedebut"),"onchange='recalculerDepuisDateDebut(this)'");
     affichage.Champ.setDefaut(pi.getFormufle().getChampFille("pu"),"0");
     affichage.Champ.setDefaut(pi.getFormufle().getChampFille("nbspot"),"0");
     affichage.Champ.setDefaut(pi.getFormufle().getChampFille("datedebut"),Utilitaire.dateDuJour());
@@ -513,6 +514,121 @@
       total += nbSpot;
     }
     document.getElementById("nbSpotTotal").innerHTML = ""+total;
+  }
+
+  // Fonction pour ajouter des jours à une date
+  function ajouterJours(dateStr, nbJours) {
+    // dateStr au format dd/mm/yyyy ou yyyy-mm-dd
+    let date;
+    if (dateStr.includes('/')) {
+      const [d, m, y] = dateStr.split('/').map(Number);
+      date = new Date(y, m - 1, d);
+    } else {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      date = new Date(y, m - 1, d);
+    }
+    date.setDate(date.getDate() + nbJours - 1); // -1 car la date de début compte comme jour 1
+    return date;
+  }
+
+  // Formater une date en dd/mm/yyyy
+  function formatDateFR(date) {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return d + '/' + m + '/' + y;
+  }
+
+  // Formater une date en yyyy-mm-dd
+  function formatDateISO(date) {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return y + '-' + m + '-' + d;
+  }
+
+  // Générer toutes les dates entre deux dates (format dd/mm/yyyy)
+  function genererDatesDiffusion(dateDebut, dateFin) {
+    let dates = [];
+    let debut, fin;
+    
+    // Parser la date de début
+    if (dateDebut.includes('/')) {
+      const [d, m, y] = dateDebut.split('/').map(Number);
+      debut = new Date(y, m - 1, d);
+    } else {
+      const [y, m, d] = dateDebut.split('-').map(Number);
+      debut = new Date(y, m - 1, d);
+    }
+    
+    // Parser la date de fin
+    if (dateFin.includes('/')) {
+      const [d, m, y] = dateFin.split('/').map(Number);
+      fin = new Date(y, m - 1, d);
+    } else {
+      const [y, m, d] = dateFin.split('-').map(Number);
+      fin = new Date(y, m - 1, d);
+    }
+    
+    while (debut <= fin) {
+      dates.push(formatDateFR(new Date(debut)));
+      debut.setDate(debut.getDate() + 1);
+    }
+    
+    return dates.join(';');
+  }
+
+  // Fonction principale : calculer date de fin et dates de diffusion à partir de la quantité
+  function calculerDateFinEtDiffusion(champQuantite) {
+    let index = champQuantite.getAttribute("id").split("_")[1];
+    let quantite = parseInt(champQuantite.value) || 0;
+    
+    if (quantite <= 0) {
+      return;
+    }
+    
+    let dateDebutInput = document.getElementById("datedebut_" + index);
+    let dateFinInput = document.getElementById("datefin_" + index);
+    let dateDiffusionInput = document.getElementById("dateDiffusion_" + index);
+    
+    if (!dateDebutInput || !dateDebutInput.value) {
+      alert("Veuillez d'abord remplir la date de début");
+      return;
+    }
+    
+    // Calculer la date de fin : date de début + (quantité - 1) jours
+    let dateFin = ajouterJours(dateDebutInput.value, quantite);
+    
+    // Mettre à jour le champ date de fin (format yyyy-mm-dd pour input type date)
+    dateFinInput.value = formatDateISO(dateFin);
+    
+    // Générer les dates de diffusion
+    let datesDiffusion = genererDatesDiffusion(dateDebutInput.value, formatDateISO(dateFin));
+    dateDiffusionInput.value = datesDiffusion;
+    
+    // Mettre à jour le compteur total
+    updateNbSpotTotal();
+  }
+
+  // Recalculer quand la date de début change
+  function recalculerDepuisDateDebut(champDateDebut) {
+    let index = champDateDebut.getAttribute("id").split("_")[1];
+    let quantiteInput = document.getElementById("nbspot_" + index);
+    
+    if (quantiteInput && parseInt(quantiteInput.value) > 0) {
+      calculerDateFinEtDiffusion(quantiteInput);
+    }
+  }
+
+  // Mettre à jour le total des spots
+  function updateNbSpotTotal() {
+    var listChamp = document.querySelectorAll('input[id^="nbspot_"]');
+    let total = 0;
+    for (let i = 0; i < listChamp.length; i++) {
+      let nbSpot = parseInt(listChamp[i].value || 0);
+      total += nbSpot;
+    }
+    document.getElementById("nbSpotTotal").innerHTML = "" + total;
   }
 
   document.addEventListener("DOMContentLoaded", function () {

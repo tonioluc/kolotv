@@ -111,6 +111,28 @@
         ReservationDetails [] rsdt = cfille[i].genererReservationDetails();
         listeFille.addAll(Arrays.asList(rsdt));
     }
+    
+    // Vérifier et ajuster les réservations pour éviter les conflits
+    // - Si conflit avec autre client -> Exception
+    // - Si même client -> cumule au jour suivant
+    java.sql.Connection conn = null;
+    try {
+        conn = new utilitaire.UtilDB().GetConn();
+        conn.setAutoCommit(false);
+        listeFille = ReservationDetails.verifierEtAjusterReservations(
+            listeFille, 
+            cmere.getIdclient(), 
+            cmere.getIdSupport(), 
+            conn
+        );
+        conn.commit();
+    } catch (Exception ex) {
+        if (conn != null) conn.rollback();
+        throw ex;
+    } finally {
+        if (conn != null) conn.close();
+    }
+    
     ClassMAPTable o = (ClassMAPTable) u.createObjectMultiple(cmere, colonneMere, listeFille.toArray(new ReservationDetails[]{}));
     temp = (Object) o;
     if (temp != null) {

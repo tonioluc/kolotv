@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 
 public class ReservationDetails extends ClassFille {
     String id;
@@ -674,5 +675,249 @@ public class ReservationDetails extends ClassFille {
             this.updateToTableWithHisto(u,c);
         }
         return this;
+    }
+
+    /**
+     * Vérifie si une réservation existe pour une date, heure et support donnés
+     * @param daty Date de la réservation
+     * @param heure Heure de la réservation
+     * @param idSupport ID du support
+     * @param c Connexion à la base de données
+     * @return ReservationDetails existante ou null si aucune
+     */
+    public static ReservationDetails getReservationExistante(Date daty, String heure, String idSupport, Connection c) throws Exception {
+        boolean estOuvert = false;
+        try {
+            if (c == null) {
+                c = new UtilDB().GetConn();
+                estOuvert = true;
+            }
+
+            String request = "SELECT rd.* FROM RESERVATIONDETAILS rd " +
+                    "JOIN RESERVATION r ON rd.IDMERE = r.ID " +
+                    "WHERE rd.DATY = ? AND rd.HEURE = ? AND r.IDSUPPORT = ?";
+            PreparedStatement statement = c.prepareStatement(request);
+            statement.setDate(1, daty);
+            statement.setString(2, heure);
+            statement.setString(3, idSupport);
+            ResultSet rs = statement.executeQuery();
+
+            if (rs.next()) {
+                ReservationDetails res = new ReservationDetails();
+                res.setId(rs.getString("ID"));
+                res.setIdmere(rs.getString("IDMERE"));
+                res.setIdproduit(rs.getString("IDPRODUIT"));
+                res.setDaty(rs.getDate("DATY"));
+                res.setHeure(rs.getString("HEURE"));
+                res.setPu(rs.getDouble("PU"));
+                res.setQte(rs.getDouble("QTE"));
+                res.setRemarque(rs.getString("REMARQUE"));
+                res.setDuree(String.valueOf(rs.getInt("DUREE")));
+                res.setIdMedia(rs.getString("IDMEDIA"));
+                res.setSource(rs.getString("SOURCE"));
+                res.setOrdre(rs.getInt("ORDRE"));
+                res.setIsEntete(rs.getInt("ISENTETE"));
+                return res;
+            }
+            return null;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            if (c != null) c.rollback();
+            throw ex;
+        } finally {
+            if (c != null && estOuvert) {
+                c.close();
+            }
+        }
+    }
+
+    /**
+     * Récupère le client associé à une réservation
+     * @param idmere ID de la réservation mère
+     * @param c Connexion
+     * @return ID du client
+     */
+    public static String getClientByReservation(String idmere, Connection c) throws Exception {
+        boolean estOuvert = false;
+        try {
+            if (c == null) {
+                c = new UtilDB().GetConn();
+                estOuvert = true;
+            }
+
+            String request = "SELECT IDCLIENT FROM RESERVATION WHERE ID = ?";
+            PreparedStatement statement = c.prepareStatement(request);
+            statement.setString(1, idmere);
+            ResultSet rs = statement.executeQuery();
+
+            if (rs.next()) {
+                return rs.getString("IDCLIENT");
+            }
+            return null;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            if (c != null) c.rollback();
+            throw ex;
+        } finally {
+            if (c != null && estOuvert) {
+                c.close();
+            }
+        }
+    }
+
+    /**
+     * Trouve la prochaine date disponible pour une réservation
+     * @param dateDepart Date de départ pour chercher
+     * @param heure Heure de la réservation
+     * @param idSupport ID du support
+     * @param idClient ID du client (pour permettre cumul si même client)
+     * @param c Connexion
+     * @return Date disponible ou null si conflit avec autre client
+     */
+    public static Date trouverDateDisponible(Date dateDepart, String heure, String idSupport, String idClient, Connection c) throws Exception {
+        boolean estOuvert = false;
+        try {
+            if (c == null) {
+                c = new UtilDB().GetConn();
+                estOuvert = true;
+            }
+
+            Date dateCourante = dateDepart;
+            int maxIterations = 365; // Limite pour éviter boucle infinie
+            int iteration = 0;
+
+            while (iteration < maxIterations) {
+                ReservationDetails resaExistante = getReservationExistante(dateCourante, heure, idSupport, c);
+
+                if (resaExistante == null) {
+                    // Pas de réservation, date disponible
+                    return dateCourante;
+                }
+
+                // Vérifier si c'est le même client
+                String clientExistant = getClientByReservation(resaExistante.getIdmere(), c);
+                if (clientExistant != null && clientExistant.equals(idClient)) {
+                    // Même client, on cumule en passant au jour suivant
+                    LocalDate ld = dateCourante.toLocalDate().plusDays(1);
+                    dateCourante = Date.valueOf(ld);
+                } else {
+                    // Client différent, on rejette avec exception
+                    return null; // Signale un conflit
+                }
+                iteration++;
+            }
+            return null; // Aucune date disponible trouvée
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            if (c != null) c.rollback();
+            throw ex;
+        } finally {
+            if (c != null && estOuvert) {
+                c.close();
+            }
+        }
+    }
+
+    /**
+     * Vérifie et ajuste les dates de réservation pour éviter les conflits
+     * Règles :
+     * - Si une date a déjà une réservation pour un AUTRE client -> Exception
+     * - Si une date a une réservation pour le MÊME client -> cumule (décale au jour suivant)
+     * 
+     * @param listeFilles Liste des ReservationDetails à vérifier/ajuster
+     * @param idClient ID du client actuel
+     * @param idSupport ID du support
+     * @param c Connexion
+     * @return Liste ajustée des ReservationDetails
+     */
+    public static List<ReservationDetails> verifierEtAjusterReservations(
+            List<ReservationDetails> listeFilles, 
+            String idClient, 
+            String idSupport, 
+            Connection c) throws Exception {
+        
+        boolean estOuvert = false;
+        try {
+            if (c == null) {
+                c = new UtilDB().GetConn();
+                estOuvert = true;
+            }
+
+            List<ReservationDetails> resultats = new ArrayList<>();
+            // Map pour suivre les dates déjà utilisées dans cette transaction
+            Map<String, Boolean> datesUtilisees = new HashMap<>();
+
+            for (ReservationDetails fille : listeFilles) {
+                Date dateCourante = fille.getDaty();
+                String heure = fille.getHeure();
+                int maxIterations = 365;
+                int iteration = 0;
+                boolean dateDisponible = false;
+
+                while (!dateDisponible && iteration < maxIterations) {
+                    String cleDate = dateCourante.toString() + "_" + heure;
+                    
+                    // Vérifier si déjà utilisée dans cette transaction
+                    if (datesUtilisees.get(cleDate) != null) {
+                        // Déjà utilisée, passer au jour suivant
+                        LocalDate ld = dateCourante.toLocalDate().plusDays(1);
+                        dateCourante = Date.valueOf(ld);
+                        iteration++;
+                        continue;
+                    }
+
+                    // Vérifier dans la base de données
+                    ReservationDetails resaExistante = getReservationExistante(dateCourante, heure, idSupport, c);
+
+                    if (resaExistante == null) {
+                        // Pas de réservation, date disponible
+                        dateDisponible = true;
+                    } else {
+                        // Vérifier si c'est le même client
+                        String clientExistant = getClientByReservation(resaExistante.getIdmere(), c);
+                        if (clientExistant != null && clientExistant.equals(idClient)) {
+                            // Même client, on cumule en passant au jour suivant
+                            LocalDate ld = dateCourante.toLocalDate().plusDays(1);
+                            dateCourante = Date.valueOf(ld);
+                        } else {
+                            // Client différent, on rejette avec exception
+                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                            throw new Exception("Conflit de réservation : La date " + 
+                                    dateCourante.toLocalDate().format(formatter) + 
+                                    " à " + heure + 
+                                    " est déjà réservée par un autre client.");
+                        }
+                    }
+                    iteration++;
+                }
+
+                if (!dateDisponible) {
+                    throw new Exception("Impossible de trouver une date disponible pour la réservation.");
+                }
+
+                // Mettre à jour la date de la fille
+                fille.setDaty(dateCourante);
+                
+                // Marquer cette date comme utilisée
+                String cleDate = dateCourante.toString() + "_" + heure;
+                datesUtilisees.put(cleDate, true);
+                
+                resultats.add(fille);
+            }
+
+            return resultats;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            if (c != null) c.rollback();
+            throw ex;
+        } finally {
+            if (c != null && estOuvert) {
+                c.close();
+            }
+        }
     }
 }

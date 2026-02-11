@@ -113,15 +113,14 @@
     }
     
     // Vérifier et ajuster les réservations pour éviter les conflits
-    // - Si conflit avec autre client -> Exception
-    // - Si même client -> cumule au jour suivant
+    // - Si conflit avec autre média -> Exception
+    // - Si même média -> cumule au jour suivant
     java.sql.Connection conn = null;
     try {
         conn = new utilitaire.UtilDB().GetConn();
         conn.setAutoCommit(false);
         listeFille = ReservationDetails.verifierEtAjusterReservations(
             listeFille, 
-            cmere.getIdclient(), 
             cmere.getIdSupport(), 
             conn
         );

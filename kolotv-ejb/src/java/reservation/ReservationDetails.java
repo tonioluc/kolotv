@@ -772,11 +772,11 @@ public class ReservationDetails extends ClassFille {
      * @param dateDepart Date de départ pour chercher
      * @param heure Heure de la réservation
      * @param idSupport ID du support
-     * @param idClient ID du client (pour permettre cumul si même client)
+     * @param idMedia ID du média (pour permettre cumul si même média)
      * @param c Connexion
-     * @return Date disponible ou null si conflit avec autre client
+     * @return Date disponible ou null si conflit avec autre média
      */
-    public static Date trouverDateDisponible(Date dateDepart, String heure, String idSupport, String idClient, Connection c) throws Exception {
+    public static Date trouverDateDisponible(Date dateDepart, String heure, String idSupport, String idMedia, Connection c) throws Exception {
         boolean estOuvert = false;
         try {
             if (c == null) {
@@ -796,14 +796,14 @@ public class ReservationDetails extends ClassFille {
                     return dateCourante;
                 }
 
-                // Vérifier si c'est le même client
-                String clientExistant = getClientByReservation(resaExistante.getIdmere(), c);
-                if (clientExistant != null && clientExistant.equals(idClient)) {
-                    // Même client, on cumule en passant au jour suivant
+                // Vérifier si c'est le même média
+                String mediaExistant = resaExistante.getIdMedia();
+                if (mediaExistant != null && mediaExistant.equals(idMedia)) {
+                    // Même média, on cumule en passant au jour suivant
                     LocalDate ld = dateCourante.toLocalDate().plusDays(1);
                     dateCourante = Date.valueOf(ld);
                 } else {
-                    // Client différent, on rejette avec exception
+                    // Média différent, on rejette avec exception
                     return null; // Signale un conflit
                 }
                 iteration++;
@@ -824,18 +824,16 @@ public class ReservationDetails extends ClassFille {
     /**
      * Vérifie et ajuste les dates de réservation pour éviter les conflits
      * Règles :
-     * - Si une date a déjà une réservation pour un AUTRE client -> Exception
-     * - Si une date a une réservation pour le MÊME client -> cumule (décale au jour suivant)
+     * - Si une date a déjà une réservation pour un AUTRE média -> Exception
+     * - Si une date a une réservation pour le MÊME média -> cumule (décale au jour suivant)
      * 
      * @param listeFilles Liste des ReservationDetails à vérifier/ajuster
-     * @param idClient ID du client actuel
      * @param idSupport ID du support
      * @param c Connexion
      * @return Liste ajustée des ReservationDetails
      */
     public static List<ReservationDetails> verifierEtAjusterReservations(
             List<ReservationDetails> listeFilles, 
-            String idClient, 
             String idSupport, 
             Connection c) throws Exception {
         
@@ -847,22 +845,23 @@ public class ReservationDetails extends ClassFille {
             }
 
             List<ReservationDetails> resultats = new ArrayList<>();
-            // Map pour suivre les dates déjà utilisées dans cette transaction
+            // Map pour suivre les dates déjà utilisées dans cette transaction (clé: date_heure_media)
             Map<String, Boolean> datesUtilisees = new HashMap<>();
 
             for (ReservationDetails fille : listeFilles) {
                 Date dateCourante = fille.getDaty();
                 String heure = fille.getHeure();
+                String idMedia = fille.getIdMedia();
                 int maxIterations = 365;
                 int iteration = 0;
                 boolean dateDisponible = false;
 
                 while (!dateDisponible && iteration < maxIterations) {
-                    String cleDate = dateCourante.toString() + "_" + heure;
+                    String cleDateMedia = dateCourante.toString() + "_" + heure + "_" + idMedia;
                     
-                    // Vérifier si déjà utilisée dans cette transaction
-                    if (datesUtilisees.get(cleDate) != null) {
-                        // Déjà utilisée, passer au jour suivant
+                    // Vérifier si déjà utilisée dans cette transaction pour le même média
+                    if (datesUtilisees.get(cleDateMedia) != null) {
+                        // Déjà utilisée par le même média, passer au jour suivant
                         LocalDate ld = dateCourante.toLocalDate().plusDays(1);
                         dateCourante = Date.valueOf(ld);
                         iteration++;
@@ -876,19 +875,22 @@ public class ReservationDetails extends ClassFille {
                         // Pas de réservation, date disponible
                         dateDisponible = true;
                     } else {
-                        // Vérifier si c'est le même client
-                        String clientExistant = getClientByReservation(resaExistante.getIdmere(), c);
-                        if (clientExistant != null && clientExistant.equals(idClient)) {
-                            // Même client, on cumule en passant au jour suivant
+                        // Vérifier si c'est le même média
+                        String mediaExistant = resaExistante.getIdMedia();
+                        boolean memeMedia = (mediaExistant == null && idMedia == null) || 
+                                           (mediaExistant != null && mediaExistant.equals(idMedia));
+                        
+                        if (memeMedia) {
+                            // Même média, on cumule en passant au jour suivant
                             LocalDate ld = dateCourante.toLocalDate().plusDays(1);
                             dateCourante = Date.valueOf(ld);
                         } else {
-                            // Client différent, on rejette avec exception
+                            // Média différent, on rejette avec exception
                             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
                             throw new Exception("Conflit de réservation : La date " + 
                                     dateCourante.toLocalDate().format(formatter) + 
                                     " à " + heure + 
-                                    " est déjà réservée par un autre client.");
+                                    " est déjà réservée par un autre média.");
                         }
                     }
                     iteration++;
@@ -901,9 +903,9 @@ public class ReservationDetails extends ClassFille {
                 // Mettre à jour la date de la fille
                 fille.setDaty(dateCourante);
                 
-                // Marquer cette date comme utilisée
-                String cleDate = dateCourante.toString() + "_" + heure;
-                datesUtilisees.put(cleDate, true);
+                // Marquer cette date comme utilisée pour ce média
+                String cleDateMedia = dateCourante.toString() + "_" + heure + "_" + idMedia;
+                datesUtilisees.put(cleDateMedia, true);
                 
                 resultats.add(fille);
             }

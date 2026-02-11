@@ -75,14 +75,25 @@
 
 - Les warnings sont généralement sans conséquence et peuvent être ignorés. NE QUITTEZ PAS encore le conteneur tant que les étapes de debug ne sont pas exécutées.
 
-8) Exécuter le script de debug SQL
+8) Exécuter les scripts SQL de debug et d'heure de pointe
 - Entrez dans `sqlplus` avec l'utilisateur :
 
   ```text
   sqlplus kolotv/kolotv
   ```
 
-- Copiez et collez le contenu du fichier [debug.sql](debug.sql) dans la session `sqlplus` et validez.
+- Exécutez le script de debug. Vous pouvez soit coller le contenu de `debug.sql` dans la session `sqlplus` et valider, soit lancer le fichier directement si il est présent dans le répertoire courant :
+
+  ```sql
+  @debug.sql
+  ```
+
+- Ensuite, lancez le script d'heure de pointe `2026-02-05-HeurePointe.sql` (ce script crée la table, la vue et insère des données de test) :
+
+  ```sql
+  @2026-02-05-HeurePointe.sql
+  ```
+
 - Une fois terminé, sortez du conteneur avec deux `exit` successifs si nécessaire.
 
 9) Tester l'application

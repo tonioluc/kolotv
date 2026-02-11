@@ -976,12 +976,12 @@ public class ReservationDetails extends ClassFille {
                                     memeMediaTransaction = true;
                                     break;
                                 } else {
-                                    // Média différent, exception
+                                    // Media different, exception
                                     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                                    throw new Exception("Conflit de réservation : La date " + 
+                                    throw new Exception("Conflit de reservation : La date " + 
                                             dateCourante.toLocalDate().format(formatter) + 
-                                            " de " + heure + " à " + heureFin.toString() +
-                                            " chevauche une autre réservation avec un média différent.");
+                                            " de " + heure + " a " + heureFin.toString() +
+                                            " chevauche une autre reservation avec un media different.");
                                 }
                             }
                         }
@@ -1021,19 +1021,19 @@ public class ReservationDetails extends ClassFille {
                             } catch (Exception e) {}
                             LocalTime heureFinExistante = LocalTime.parse(resaExistante.getHeure())
                                     .plusSeconds(dureeExistante);
-                            throw new Exception("Conflit de réservation : La date " + 
+                            throw new Exception("Conflit de reservation : La date " + 
                                     dateCourante.toLocalDate().format(formatter) + 
-                                    " de " + heure + " à " + heureFin.toString() +
-                                    " chevauche une réservation existante (" + 
-                                    resaExistante.getHeure() + " à " + heureFinExistante.toString() + 
-                                    ") avec un média différent.");
+                                    " de " + heure + " a " + heureFin.toString() +
+                                    " chevauche une reservation existante (" + 
+                                    resaExistante.getHeure() + " a " + heureFinExistante.toString() + 
+                                    ") avec un media different.");
                         }
                     }
                     iteration++;
                 }
 
                 if (!dateDisponible) {
-                    throw new Exception("Impossible de trouver une date disponible pour la réservation.");
+                    throw new Exception("Impossible de trouver une date disponible pour la reservation.");
                 }
 
                 // Mettre à jour la date de la fille

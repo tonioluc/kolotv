@@ -679,11 +679,93 @@ public class ReservationDetails extends ClassFille {
 
     /**
      * Vérifie si une réservation existe pour une date, heure et support donnés
+     * en tenant compte de la durée (chevauchement horaire)
+     * @param daty Date de la réservation
+     * @param heure Heure de début de la nouvelle réservation (format HH:mm:ss)
+     * @param dureeSecondes Durée de la nouvelle réservation en secondes
+     * @param idSupport ID du support
+     * @param c Connexion à la base de données
+     * @return ReservationDetails existante en conflit ou null si aucune
+     */
+    public static ReservationDetails getReservationExistanteAvecChevauchement(Date daty, String heure, int dureeSecondes, String idSupport, Connection c) throws Exception {
+        boolean estOuvert = false;
+        try {
+            if (c == null) {
+                c = new UtilDB().GetConn();
+                estOuvert = true;
+            }
+
+            // Calculer l'heure de fin de la nouvelle réservation
+            LocalTime heureDebutNouvelle = LocalTime.parse(heure);
+            LocalTime heureFinNouvelle = heureDebutNouvelle.plusSeconds(dureeSecondes);
+
+            // Récupérer toutes les réservations du même jour et support
+            String request = "SELECT rd.* FROM RESERVATIONDETAILS rd " +
+                    "JOIN RESERVATION r ON rd.IDMERE = r.ID " +
+                    "WHERE rd.DATY = ? AND r.IDSUPPORT = ?";
+            PreparedStatement statement = c.prepareStatement(request);
+            statement.setDate(1, daty);
+            statement.setString(2, idSupport);
+            ResultSet rs = statement.executeQuery();
+
+            while (rs.next()) {
+                String heureExistante = rs.getString("HEURE");
+                int dureeExistante = rs.getInt("DUREE"); // en secondes
+                
+                if (heureExistante == null) continue;
+                
+                LocalTime heureDebutExistante = LocalTime.parse(heureExistante);
+                LocalTime heureFinExistante = heureDebutExistante.plusSeconds(dureeExistante > 0 ? dureeExistante : 0);
+
+                // Vérifier le chevauchement : 
+                // Il y a chevauchement si : debutA < finB ET finA > debutB
+                boolean chevauchement = heureDebutNouvelle.isBefore(heureFinExistante) && 
+                                        heureFinNouvelle.isAfter(heureDebutExistante);
+                
+                // Cas spécial : si durée = 0, vérifier juste l'égalité d'heure
+                if (dureeExistante == 0 && dureeSecondes == 0) {
+                    chevauchement = heureDebutNouvelle.equals(heureDebutExistante);
+                }
+
+                if (chevauchement) {
+                    ReservationDetails res = new ReservationDetails();
+                    res.setId(rs.getString("ID"));
+                    res.setIdmere(rs.getString("IDMERE"));
+                    res.setIdproduit(rs.getString("IDPRODUIT"));
+                    res.setDaty(rs.getDate("DATY"));
+                    res.setHeure(heureExistante);
+                    res.setPu(rs.getDouble("PU"));
+                    res.setQte(rs.getDouble("QTE"));
+                    res.setRemarque(rs.getString("REMARQUE"));
+                    res.setDuree(String.valueOf(dureeExistante));
+                    res.setIdMedia(rs.getString("IDMEDIA"));
+                    res.setSource(rs.getString("SOURCE"));
+                    res.setOrdre(rs.getInt("ORDRE"));
+                    res.setIsEntete(rs.getInt("ISENTETE"));
+                    return res;
+                }
+            }
+            return null;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            if (c != null) c.rollback();
+            throw ex;
+        } finally {
+            if (c != null && estOuvert) {
+                c.close();
+            }
+        }
+    }
+
+    /**
+     * Vérifie si une réservation existe pour une date, heure et support donnés
      * @param daty Date de la réservation
      * @param heure Heure de la réservation
      * @param idSupport ID du support
      * @param c Connexion à la base de données
      * @return ReservationDetails existante ou null si aucune
+     * @deprecated Utiliser getReservationExistanteAvecChevauchement pour prendre en compte la durée
      */
     public static ReservationDetails getReservationExistante(Date daty, String heure, String idSupport, Connection c) throws Exception {
         boolean estOuvert = false;
@@ -845,34 +927,80 @@ public class ReservationDetails extends ClassFille {
             }
 
             List<ReservationDetails> resultats = new ArrayList<>();
-            // Map pour suivre les dates déjà utilisées dans cette transaction (clé: date_heure_media)
-            Map<String, Boolean> datesUtilisees = new HashMap<>();
+            // Map pour suivre les créneaux déjà utilisés dans cette transaction
+            // Clé: date, Valeur: liste de créneaux (heureDebutSec, heureFinSec, idMedia)
+            Map<String, List<Object[]>> creneauxUtilises = new HashMap<>();
 
             for (ReservationDetails fille : listeFilles) {
                 Date dateCourante = fille.getDaty();
                 String heure = fille.getHeure();
                 String idMedia = fille.getIdMedia();
+                int dureeSecondes = 0;
+                try {
+                    dureeSecondes = Integer.parseInt(fille.getDuree());
+                } catch (Exception e) {
+                    dureeSecondes = 0;
+                }
+                
+                final int dureeFinal = dureeSecondes;
                 int maxIterations = 365;
                 int iteration = 0;
                 boolean dateDisponible = false;
 
                 while (!dateDisponible && iteration < maxIterations) {
-                    String cleDateMedia = dateCourante.toString() + "_" + heure + "_" + idMedia;
+                    LocalTime heureDebut = LocalTime.parse(heure);
+                    LocalTime heureFin = heureDebut.plusSeconds(dureeFinal);
+                    int heureDebutSec = heureDebut.toSecondOfDay();
+                    int heureFinSec = heureFin.toSecondOfDay();
                     
-                    // Vérifier si déjà utilisée dans cette transaction pour le même média
-                    if (datesUtilisees.get(cleDateMedia) != null) {
-                        // Déjà utilisée par le même média, passer au jour suivant
+                    String cleDate = dateCourante.toString();
+                    
+                    // Vérifier si chevauchement dans cette transaction
+                    boolean chevauchementTransaction = false;
+                    boolean memeMediaTransaction = false;
+                    
+                    if (creneauxUtilises.containsKey(cleDate)) {
+                        for (Object[] creneau : creneauxUtilises.get(cleDate)) {
+                            int creneauDebut = (Integer) creneau[0];
+                            int creneauFin = (Integer) creneau[1];
+                            String creneauMedia = (String) creneau[2];
+                            
+                            // Vérifier chevauchement horaire
+                            boolean chevauche = heureDebutSec < creneauFin && heureFinSec > creneauDebut;
+                            
+                            if (chevauche) {
+                                boolean memeMedia = (creneauMedia == null && idMedia == null) || 
+                                                   (creneauMedia != null && creneauMedia.equals(idMedia));
+                                if (memeMedia) {
+                                    chevauchementTransaction = true;
+                                    memeMediaTransaction = true;
+                                    break;
+                                } else {
+                                    // Média différent, exception
+                                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                                    throw new Exception("Conflit de réservation : La date " + 
+                                            dateCourante.toLocalDate().format(formatter) + 
+                                            " de " + heure + " à " + heureFin.toString() +
+                                            " chevauche une autre réservation avec un média différent.");
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (chevauchementTransaction && memeMediaTransaction) {
+                        // Même média, passer au jour suivant
                         LocalDate ld = dateCourante.toLocalDate().plusDays(1);
                         dateCourante = Date.valueOf(ld);
                         iteration++;
                         continue;
                     }
 
-                    // Vérifier dans la base de données
-                    ReservationDetails resaExistante = getReservationExistante(dateCourante, heure, idSupport, c);
+                    // Vérifier dans la base de données avec chevauchement
+                    ReservationDetails resaExistante = getReservationExistanteAvecChevauchement(
+                            dateCourante, heure, dureeFinal, idSupport, c);
 
                     if (resaExistante == null) {
-                        // Pas de réservation, date disponible
+                        // Pas de réservation en conflit, date disponible
                         dateDisponible = true;
                     } else {
                         // Vérifier si c'est le même média
@@ -887,10 +1015,18 @@ public class ReservationDetails extends ClassFille {
                         } else {
                             // Média différent, on rejette avec exception
                             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                            int dureeExistante = 0;
+                            try {
+                                dureeExistante = Integer.parseInt(resaExistante.getDuree());
+                            } catch (Exception e) {}
+                            LocalTime heureFinExistante = LocalTime.parse(resaExistante.getHeure())
+                                    .plusSeconds(dureeExistante);
                             throw new Exception("Conflit de réservation : La date " + 
                                     dateCourante.toLocalDate().format(formatter) + 
-                                    " à " + heure + 
-                                    " est déjà réservée par un autre média.");
+                                    " de " + heure + " à " + heureFin.toString() +
+                                    " chevauche une réservation existante (" + 
+                                    resaExistante.getHeure() + " à " + heureFinExistante.toString() + 
+                                    ") avec un média différent.");
                         }
                     }
                     iteration++;
@@ -903,9 +1039,17 @@ public class ReservationDetails extends ClassFille {
                 // Mettre à jour la date de la fille
                 fille.setDaty(dateCourante);
                 
-                // Marquer cette date comme utilisée pour ce média
-                String cleDateMedia = dateCourante.toString() + "_" + heure + "_" + idMedia;
-                datesUtilisees.put(cleDateMedia, true);
+                // Marquer ce créneau comme utilisé
+                String cleDate = dateCourante.toString();
+                LocalTime heureDebut = LocalTime.parse(heure);
+                LocalTime heureFin = heureDebut.plusSeconds(dureeFinal);
+                int heureDebutSec = heureDebut.toSecondOfDay();
+                int heureFinSec = heureFin.toSecondOfDay();
+                
+                if (!creneauxUtilises.containsKey(cleDate)) {
+                    creneauxUtilises.put(cleDate, new ArrayList<>());
+                }
+                creneauxUtilises.get(cleDate).add(new Object[]{heureDebutSec, heureFinSec, idMedia});
                 
                 resultats.add(fille);
             }

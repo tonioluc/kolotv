@@ -72,125 +72,137 @@ try{
     function changerDesignation() {
         document.analyse.submit();
     }
-    $(document).ready(function() {
-        $('.box table tr').each(function() {
-            $(this).find('td:last, th:last').hide();
-        });
-        
-        // Ajouter les totaux par ligne et par colonne
-        addTotalsToTable();
-    });
     
-    function addTotalsToTable() {
-        const table = document.querySelector('.box table');
-        if (!table) return;
-        
-        const tbody = table.querySelector('tbody');
-        const thead = table.querySelector('thead');
-        if (!tbody || !thead) return;
-        
-        const rows = tbody.querySelectorAll('tr');
-        const headerRow = thead.querySelector('tr');
-        if (!headerRow) return;
-        
-        // Ajouter l'en-tête "TOTAL" 
-        const totalHeader = document.createElement('th');
-        totalHeader.textContent = 'TOTAL';
-        totalHeader.style.textAlign = 'right';
-        totalHeader.style.fontWeight = 'bold';
-        totalHeader.style.backgroundColor = '#f5f5f5';
-        headerRow.appendChild(totalHeader);
-        
-        // Calculer le nombre de colonnes de données (sans la première colonne de libellé)
-        const numDataCols = headerRow.querySelectorAll('th').length - 2; // -1 pour libellé, -1 pour le nouveau TOTAL
-        
-        // Tableaux pour stocker les totaux par colonne (qte et puTotal alternés)
-        const colTotals = [];
-        for (let i = 0; i < numDataCols; i++) {
-            colTotals.push(0);
-        }
-        
-        // Pour chaque ligne, calculer le total et ajouter une cellule
-        rows.forEach((row) => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length <= 1) return;
-            
-            let rowTotalQte = 0;
-            let rowTotalMontant = 0;
-            
-            // Parcourir les cellules de données (en sautant la première qui est le libellé)
-            for (let i = 1; i < cells.length; i++) {
-                const cellText = cells[i].textContent.trim();
-                const lines = cellText.split('\n').map(s => s.trim()).filter(s => s !== '');
-                
-                lines.forEach((line, lineIndex) => {
-                    const value = parseFloat(line.replace(/\s/g, '').replace(',', '.')) || 0;
-                    if (lineIndex === 0) {
-                        rowTotalQte += value;
-                    } else if (lineIndex === 1) {
-                        rowTotalMontant += value;
-                    }
-                    // Ajouter aux totaux de colonne
-                    const colIndex = (i - 1) * 2 + lineIndex;
-                    if (colIndex < colTotals.length * 2) {
-                        if (lineIndex === 0) {
-                            colTotals[(i - 1) * 2] = (colTotals[(i - 1) * 2] || 0) + value;
-                        } else {
-                            colTotals[(i - 1) * 2 + 1] = (colTotals[(i - 1) * 2 + 1] || 0) + value;
-                        }
-                    }
-                });
+    $(document).ready(function() {
+        // Attendre que le tableau soit rendu
+        setTimeout(function() {
+            var table = $('#selectnonee table').first();
+            if (table.length === 0) {
+                console.log('Table non trouvée');
+                return;
             }
             
-            // Ajouter la cellule total pour cette ligne
-            const totalCell = document.createElement('td');
-            totalCell.style.textAlign = 'right';
-            totalCell.style.fontWeight = 'bold';
-            totalCell.style.backgroundColor = '#f0f8ff';
-            totalCell.innerHTML = formatNumber(rowTotalQte) + '<br>' + formatNumber(rowTotalMontant);
-            row.appendChild(totalCell);
-        });
-        
-        // Ajouter une ligne de totaux en bas
-        const totalRow = document.createElement('tr');
-        totalRow.style.fontWeight = 'bold';
-        totalRow.style.backgroundColor = '#e8e8e8';
-        
-        // Première cellule: "TOTAL"
-        const labelCell = document.createElement('td');
-        labelCell.textContent = 'TOTAL';
-        labelCell.style.textAlign = 'center';
-        labelCell.style.fontWeight = 'bold';
-        totalRow.appendChild(labelCell);
-        
-        // Calculer et ajouter les totaux par colonne
-        let grandTotalQte = 0;
-        let grandTotalMontant = 0;
-        
-        for (let i = 0; i < numDataCols; i++) {
-            const qteTotal = colTotals[i * 2] || 0;
-            const montantTotal = colTotals[i * 2 + 1] || 0;
-            grandTotalQte += qteTotal;
-            grandTotalMontant += montantTotal;
+            console.log('Table trouvée:', table.length);
             
-            const cell = document.createElement('td');
-            cell.style.textAlign = 'right';
-            cell.innerHTML = formatNumber(qteTotal) + '<br>' + formatNumber(montantTotal);
-            totalRow.appendChild(cell);
+            // Masquer la dernière colonne (colonne vide générée par le framework)
+            table.find('tbody tr').each(function() {
+                $(this).find('td:last-child').hide();
+            });
+            
+            // Ajouter les totaux
+            ajouterColonneTotaux(table);
+        }, 300);
+    });
+    
+    function ajouterColonneTotaux(table) {
+        var tbody = table.find('tbody');
+        var allRows = tbody.find('tr');
+        
+        if (allRows.length < 2) {
+            console.log('Pas assez de lignes');
+            return;
         }
         
-        // Cellule grand total
-        const grandTotalCell = document.createElement('td');
-        grandTotalCell.style.textAlign = 'right';
-        grandTotalCell.style.backgroundColor = '#d4edda';
-        grandTotalCell.innerHTML = '<strong>' + formatNumber(grandTotalQte) + '</strong><br><strong>' + formatNumber(grandTotalMontant) + '</strong>';
-        totalRow.appendChild(grandTotalCell);
+        // La première ligne contient les en-têtes (mois)
+        var headerRow = allRows.first();
+        // Les lignes de données (sauf la première qui est l'en-tête et la dernière qui est le total du framework)
+        var dataRows = allRows.slice(1, allRows.length - 1);
         
-        tbody.appendChild(totalRow);
+        // Compter les colonnes visibles dans l'en-tête
+        var headerCells = headerRow.find('td:visible');
+        var nbColonnes = headerCells.length - 1; // -1 pour la colonne libellé
+        
+        console.log('Nombre de colonnes de données:', nbColonnes);
+        
+        if (nbColonnes <= 0) return;
+        
+        // Ajouter l'en-tête TOTAL dans la première ligne
+        headerRow.append('<td style="text-align:center; font-weight:bold; background-color:#1976d2; color:white; padding:8px;">TOTAL</td>');
+        
+        // Variables pour les totaux par colonne
+        var totauxColQte = [];
+        var totauxColMontant = [];
+        for (var i = 0; i < nbColonnes; i++) {
+            totauxColQte[i] = 0;
+            totauxColMontant[i] = 0;
+        }
+        
+        var grandTotalQte = 0;
+        var grandTotalMontant = 0;
+        
+        // Pour chaque ligne de données, calculer et ajouter le total
+        dataRows.each(function() {
+            var row = $(this);
+            var cells = row.find('td:visible');
+            
+            if (cells.length <= 1) return true; // continue
+            
+            var totalQte = 0;
+            var totalMontant = 0;
+            var colIndex = 0;
+            
+            // Parcourir les cellules de données (skip la première = libellé)
+            cells.each(function(index) {
+                if (index === 0) return true; // Skip libellé
+                
+                var cellHtml = $(this).html();
+                var parts = cellHtml.split(/<br\s*\/?>/i);
+                
+                if (parts.length >= 1) {
+                    var qteText = $('<div>').html(parts[0]).text().trim();
+                    var qte = parseFloat(qteText.replace(/\s/g, '').replace(',', '.')) || 0;
+                    totalQte += qte;
+                    if (colIndex < nbColonnes) {
+                        totauxColQte[colIndex] += qte;
+                    }
+                }
+                if (parts.length >= 2) {
+                    var montantText = $('<div>').html(parts[1]).text().trim();
+                    var montant = parseFloat(montantText.replace(/\s/g, '').replace(',', '.')) || 0;
+                    totalMontant += montant;
+                    if (colIndex < nbColonnes) {
+                        totauxColMontant[colIndex] += montant;
+                    }
+                }
+                colIndex++;
+            });
+            
+            grandTotalQte += totalQte;
+            grandTotalMontant += totalMontant;
+            
+            // Ajouter cellule TOTAL pour cette ligne
+            row.append('<td style="text-align:right; font-weight:bold; background-color:#e3f2fd; border-left:3px solid #1976d2; padding:8px;">' + 
+                formatNombre(totalQte) + '<br>' + formatNombre(totalMontant) + '</td>');
+        });
+        
+        // Ajouter le total à la dernière ligne (ligne de totaux du framework)
+        var lastRow = allRows.last();
+        lastRow.append('<td style="text-align:right; font-weight:bold; background-color:#4caf50; color:white; border-left:3px solid #1976d2; padding:8px; font-size:1.1em;">' +
+            formatNombre(grandTotalQte) + '<br>' + formatNombre(grandTotalMontant) + '</td>');
+        
+        // Styliser la dernière ligne
+        lastRow.css({
+            'font-weight': 'bold',
+            'background-color': '#fff3e0',
+            'border-top': '3px solid #e65100'
+        });
+        lastRow.find('td:first').css({
+            'background-color': '#e65100',
+            'color': 'white',
+            'text-align': 'center'
+        });
+        
+        console.log('Totaux ajoutés - Grand total Qte:', grandTotalQte, 'Montant:', grandTotalMontant);
     }
     
-    function formatNumber(num) {
-        return num.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    function formatNombre(num) {
+        if (num === undefined || num === null || isNaN(num)) {
+            return '0,00';
+        }
+        // Formater avec séparateur de milliers et 2 décimales
+        var parts = num.toFixed(2).split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        return parts.join(',');
     }
     
     function alignTableCells() {

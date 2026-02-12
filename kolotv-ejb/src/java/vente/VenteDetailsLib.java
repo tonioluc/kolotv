@@ -31,6 +31,15 @@ public class VenteDetailsLib  extends VenteDetails implements ClassIA {
     protected String idDeviseLib;
     protected String idSupport;
     protected String idSupportLib;
+    protected String mois;
+
+    public String getMois() {
+        return mois;
+    }
+
+    public void setMois(String mois) {
+        this.mois = mois;
+    }
 
     public String getIdSupportLib() {
         return idSupportLib;

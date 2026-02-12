@@ -13,14 +13,14 @@
 <%
 try{
     VenteDetailsLib mvt = new VenteDetailsLib();
-    String nomTable = "VENTE_DETAILS_CPL_2_VISEE";
+    String nomTable = "VENTE_DETAILS_CPL_MOIS_VISEE";
     mvt.setNomTable(nomTable);
 
     String listeCrt[] = {"idProduitLib","daty","idSupport","idCategorie"};
     String listeInt[] = {"daty"};
     String[] pourcentage = {};
     String[] colGr = {"idProduitLib"};
-    String[] colGrCol = {"idDeviseLib"};
+    String[] colGrCol = {"mois"};
     //String somDefaut[] = {"qte", "puTotal", "puRevient"};
     String somDefaut[] = {"qte", "puTotal"};
 

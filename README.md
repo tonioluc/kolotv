@@ -7,8 +7,8 @@
 **Étapes**
 
 1) Télécharger les fichiers manquants
-- Le répertoire `build-file` et le fichier `build.xml` sont exclus du dépôt (gitignore). Téléchargez-les depuis le lien fourni par l'auteur et placez-les à la racine du clone du projet.
-- Collez le lien de téléchargement ici : https://drive.google.com/drive/folders/1vl0qd3sZB0N3AEcz6V6mizDEMwFRQ83-?usp=sharing
+- Le répertoire `build-file` et le fichier `build.xml` sont exclus du dépôt (gitignore). Téléchargez-les depuis le lien fourni et placez-les à la racine du clone du projet.
+- Voici le lien pour télécharger les fichiers requis : https://drive.google.com/drive/folders/1vl0qd3sZB0N3AEcz6V6mizDEMwFRQ83-?usp=sharing
 
 2) Copier les fichiers dans le projet
 - Après téléchargement, copiez le dossier `build-file` et le fichier `build.xml` à la racine du dépôt cloné (même niveau que ce fichier README).
@@ -126,3 +126,4 @@ Remarques et bonnes pratiques
 - Conservez le `.dmp` et les fichiers volumineux en dehors du dépôt (disque local ou partage).
 
 - Si vous rencontrez des problèmes, joignez les logs obtenus via `docker compose logs -f` lors de votre demande d'aide.
+
